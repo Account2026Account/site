@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}Campus{% endblock %}</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='extra.css') }}"></head>
+<body><div class="blob b1"></div><div class="blob b2"></div>
+{% if session.uid %}<header><a class="logo" href="{{ url_for('index') }}">🎓 Campus</a>
+<span>{{ session.name }}, {{ {'admin':'администратор','dispatcher':'диспетчер расписания','teacher':'преподаватель','student':'студент'}[session.role] }}</span>
+<a class="btn ghost" href="{{ url_for('index') }}">Главная</a><a class="btn ghost" href="{{ url_for('schedule') }}">Расписание</a>
+{% if session.role == 'student' %}<a class="btn ghost" href="{{ url_for('duty') }}">Дежурства</a>{% endif %}
+{% if session.role in ('student', 'teacher') %}<a class="btn ghost" href="{{ url_for('homework') }}">Задания</a>{% endif %}
+{% if session.role in ('admin', 'dispatcher') %}<a class="btn ghost" href="{{ url_for('dispatcher') }}">Управление расписанием</a>{% endif %}
+<a class="btn ghost" href="{{ url_for('profile') }}">Профиль</a><a class="btn ghost" href="{{ url_for('logout') }}">Выйти</a></header>{% endif %}
+<main class="wrap">{% block content %}{% endblock %}</main><div id="toast"></div>
+<script>
+function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2400)}
+{% for m in get_flashed_messages() %}toast({{ m|tojson }});{% endfor %}
+</script>{% block js %}{% endblock %}</body></html>

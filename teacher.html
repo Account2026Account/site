@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block title %}Мои группы — Campus{% endblock %}
+{% block content %}<h1 class="in">Мои группы</h1><p class="sub in" style="--i:1">Выберите группу и предмет, чтобы открыть журнал.</p>
+{% include "_today.html" %}
+{% if rows %}<div class="grid" style="margin-bottom:18px">{% for r in rows %}
+<a class="card tile in" style="--i:{{ loop.index + 1 }}" href="{{ url_for('journal', gid=r.gid, sid=r.sid) }}"><h2>{{ r.gname }}</h2><b>{{ r.sname }}</b>
+<p class="sub" style="margin:8px 0 0">Студентов: {{ r.n }}, занятий: {{ r.l }}{% if r.co %}<br>Вместе с: {{ r.co }}{% endif %}</p></a>{% endfor %}</div>
+{% else %}<div class="card in"><p>Вам пока не назначены группы. Попросите администратора добавить назначение.</p></div>{% endif %}
+{% include "_ann.html" %}{% endblock %}

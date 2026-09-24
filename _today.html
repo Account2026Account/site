@@ -1,0 +1,7 @@
+<div class="card in" style="--i:1"><h2>Сегодня, {{ WDF[now.weekday()] }}, {{ now.strftime('%d.%m.%Y') }}</h2>
+{% for o in today_items %}<div class="it {{ o.status }}"><b>{{ o.num }} пара, {{ o.start }}–{{ o.end }}: {{ o.sname }}</b>{% if o.status == 'cancel' %}<span class="badge bad">Отменено</span>{% elif o.status == 'replace' %}<span class="badge">Замена</span>{% endif %}
+<small>{{ o.gname }}, {{ o.tname }}, ауд. {{ o.room or '—' }}{% if o.note %}. {{ o.note }}{% endif %}</small></div>{% else %}<p class="sub" style="margin:0">Сегодня занятий нет.</p>{% endfor %}
+<a class="back" style="margin:8px 0 0" href="{{ url_for('schedule') }}">Расписание на неделю</a></div>
+{% if changes_items %}<div class="card in" style="--i:2"><h2>Изменения в расписании на неделю</h2>
+{% for o in changes_items %}<div class="it {{ o.status }}"><b>{{ o.day[8:10] }}.{{ o.day[5:7] }}, {{ o.num }} пара: {{ o.sname }}</b>{% if o.status == 'cancel' %}<span class="badge bad">Отменено</span>{% else %}<span class="badge">Замена</span>{% endif %}
+<small>{{ o.gname }}, {{ o.tname }}{% if o.status == 'replace' and o.tname != o.orig_tname %} (вместо {{ o.orig_tname }}){% endif %}, ауд. {{ o.room or '—' }}{% if o.note %}. {{ o.note }}{% endif %}</small></div>{% endfor %}</div>{% endif %}

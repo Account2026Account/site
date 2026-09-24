@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}Задания — Campus{% endblock %}
+{% block content %}<a class="back" href="{{ url_for('index') }}">← В главное меню</a><h1 class="in">Задания</h1>
+{% if courses is not none %}<p class="sub in" style="--i:1">Опубликуйте задание для группы. Студенты отмечают выполнение, а вы видите, сколько человек сдали.</p>
+<form class="card in" style="--i:2" method="post" action="{{ url_for('homework_add') }}"><div class="row"><label>Группа и предмет<select name="course" required>{% for c in courses %}<option value="{{ c.gid }}:{{ c.sid }}">{{ c.gname }}, {{ c.sname }}</option>{% endfor %}</select></label>
+<label>Название<input name="title" required></label><label>Срок сдачи<input type="date" name="due"></label></div>
+<textarea name="body" placeholder="Описание (необязательно)" style="margin:12px 0"></textarea><button class="btn">Опубликовать</button></form>
+<div class="card in" style="--i:3"><h2>Опубликованные задания</h2>{% for h in rows %}<div class="hw"><div><b>{{ h.title }}</b><br><small class="sub">{{ h.gname }}, {{ h.sname }}{% if h.due %}, срок {{ h.due[8:10] }}.{{ h.due[5:7] }}{% endif %}. Выполнили: {{ h.done }} из {{ h.total }}</small>{% if h.body %}<p>{{ h.body }}</p>{% endif %}</div>
+{% if h.author_id == session.uid %}<form method="post" action="{{ url_for('homework_del') }}" onsubmit="return confirm('Удалить задание?')"><input type="hidden" name="id" value="{{ h.id }}"><button class="x" title="Удалить">×</button></form>{% endif %}</div>{% else %}<p class="sub">Заданий пока нет.</p>{% endfor %}</div>
+{% else %}<p class="sub in" style="--i:1">Отмечайте выполненные задания, чтобы не потерять сроки.</p>
+<div class="card in" style="--i:2">{% for h in rows %}<div class="hw {{ 'done' if h.done }}"><input type="checkbox" data-id="{{ h.id }}" {{ 'checked' if h.done }}><div><b>{{ h.title }}</b>
+{% if h.due and h.due < today and not h.done %}<span class="badge bad">Просрочено</span>{% elif h.due == today and not h.done %}<span class="badge">Сегодня</span>{% endif %}<br><small class="sub">{{ h.sname }}, {{ h.author or '' }}{% if h.due %}, срок {{ h.due[8:10] }}.{{ h.due[5:7] }}{% endif %}</small>{% if h.body %}<p>{{ h.body }}</p>{% endif %}</div></div>
+{% else %}<p class="sub">Заданий пока нет.</p>{% endfor %}</div>{% endif %}{% endblock %}
+{% block js %}<script>document.querySelectorAll('.hw input[type=checkbox]').forEach(c=>c.onchange=async()=>{
+ try{await fetch('/homework/done',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:+c.dataset.id,done:c.checked})});
+ c.closest('.hw').classList.toggle('done',c.checked);toast(c.checked?'Отмечено как выполненное':'Отметка снята')}catch(e){c.checked=!c.checked;toast('Не удалось сохранить')}})</script>{% endblock %}

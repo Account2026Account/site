@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% block title %}Мои результаты — Campus{% endblock %}
+{% block content %}{% macro cell(c) %}{% if c.grade %}<span class="cell k{{ c.grade }}">{{ c.grade }}</span>{% elif c.present == 0 %}<span class="cell abs">н</span>{% elif c.present == 1 %}<span class="cell ok">•</span>{% else %}<span class="cell"></span>{% endif %}{% endmacro %}
+<h1 class="in">Мои результаты</h1><p class="sub in" style="--i:1">Группа {{ grp or '—' }}</p>
+{% include "_today.html" %}
+{% if my_duty or hw %}<div class="two" style="margin-bottom:18px">{% if hw %}<div class="card in"><h2>Задания к выполнению</h2>{% for h in hw %}<div class="li"><span>{{ h.title }}<br><small>{{ h.sname }}{% if h.due %}, до {{ h.due[8:10] }}.{{ h.due[5:7] }}{% endif %}</small></span></div>{% endfor %}<a class="back" style="margin:8px 0 0" href="{{ url_for('homework') }}">Все задания</a></div>{% endif %}
+{% if my_duty %}<div class="card in"><h2>Мои дежурства</h2>{% for r in my_duty %}<div class="li"><span>{{ r.day[8:10] }}.{{ r.day[5:7] }}<br><small>{{ r.task }}</small></span></div>{% endfor %}<a class="back" style="margin:8px 0 0" href="{{ url_for('duty') }}">График группы</a></div>{% endif %}</div>{% endif %}
+<div class="stats" style="margin-bottom:18px">
+<div class="card in" style="--i:2;margin:0"><div class="sub" style="margin:0">Средний балл</div><div class="big" data-count="{{ avg }}" data-dec="2">0</div></div>
+<div class="card in" style="--i:3;margin:0"><div class="sub" style="margin:0">Посещаемость, %</div><div class="big" data-count="{{ pct }}" data-dec="0">0</div><div class="bar"><i data-w="{{ pct }}"></i></div></div>
+<div class="card in" style="--i:4;margin:0"><div class="sub" style="margin:0">Получено оценок</div><div class="big" data-count="{{ cnt }}" data-dec="0">0</div></div></div>
+{% include "_ann.html" %}
+{% for s in subs %}<div class="card in" style="--i:{{ loop.index + 4 }}">
+<div class="row" style="justify-content:space-between;align-items:baseline"><b style="font-size:18px">{{ s.sname }}</b><span class="sub" style="margin:0">{{ s.tname }}</span></div>
+<p class="sub" style="margin:4px 0 0">Средний балл: <b>{{ s.avg or '—' }}</b>, пропусков: {{ s.missed }}, посещаемость: {{ (s.pct ~ '%') if s.pct is not none else '—' }}</p>
+<div class="bar"><i data-w="{{ s.pct or 0 }}"></i></div>
+<div class="mini">{% for c in s.cells %}<div class="ms" title="{{ c.topic or '' }}">{{ c.day[8:10] }}.{{ c.day[5:7] }}{{ cell(c) }}</div>{% else %}<span class="sub">Занятий пока не было.</span>{% endfor %}</div></div>
+{% else %}<div class="card"><p>Для вашей группы пока не назначены предметы.</p></div>{% endfor %}
+<p class="hint">Число — оценка, «н» — отсутствовал, точка — присутствовал без оценки.</p>{% endblock %}
+{% block js %}<script>
+setTimeout(()=>document.querySelectorAll(".bar i").forEach(i=>i.style.width=i.dataset.w+"%"),300);
+document.querySelectorAll("[data-count]").forEach(el=>{const to=+el.dataset.count,dec=+el.dataset.dec,t0=performance.now();
+ (function f(t){const p=Math.min((t-t0)/1200,1),e=1-Math.pow(1-p,3);el.textContent=(to*e).toFixed(dec);if(p<1)requestAnimationFrame(f)})(t0)});
+</script>{% endblock %}

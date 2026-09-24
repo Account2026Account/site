@@ -1,0 +1,48 @@
+{% extends "base.html" %}{% block title %}{{ a.gname }}, {{ a.sname }}{% endblock %}
+{% block content %}<a class="back" href="{{ url_for('teacher') }}">← Все группы</a>
+<h1 class="in">{{ a.gname }}, {{ a.sname }}</h1>
+<p class="sub in" style="--i:1">Преподаватели: {{ team }}. Занятия появляются автоматически по расписанию. Нажмите на ячейку, чтобы отметить посещение или поставить оценку.</p>
+<div class="card in row" style="--i:2"><label>Внеплановое занятие: дата<input type="date" id="day" value="{{ today }}"></label>
+<label>Тема<input id="topic" placeholder="Необязательно"></label><button class="btn" id="add">Добавить</button>
+<a class="btn ghost" style="color:var(--ink);border-color:var(--line)" href="{{ url_for('export', gid=a.gid, sid=a.sid) }}">Скачать Excel</a></div>
+<div class="card in" style="--i:3">
+{% if not rows %}<p>В этой группе пока нет студентов. Их добавляет администратор.</p>
+{% elif not lessons %}<p>Занятий пока нет. Они появятся автоматически по расписанию.</p>
+{% else %}<div class="scroll"><table class="jt"><thead><tr><th>Студент</th><th>Ср. балл</th><th>Пропуски</th><th>Посещаемость</th>
+{% for l in lessons %}<th class="lh" data-l="{{ l.id }}"><small class="dt" data-t="{{ l.topic }}" title="{{ l.topic or 'Тема не указана, нажмите чтобы добавить' }}{% if l.tname %} ({{ l.tname }}){% endif %}">{{ l.day[8:10] }}.{{ l.day[5:7] }}</small>
+<button data-a="all" title="Отметить всех присутствующими">✓</button><button data-a="del" title="Удалить занятие">×</button></th>{% endfor %}</tr></thead>
+<tbody>{% for r in rows %}<tr class="{{ 'warn' if (r.avg and r.avg < 3) or (r.pct is not none and r.pct < 70) }}"><td>{{ r.name }}</td><td><b class="avg">{{ r.avg or '—' }}</b></td><td class="miss">{{ r.missed }}</td>
+<td class="pct">{{ (r.pct ~ '%') if r.pct is not none else '—' }}</td>
+{% for l in lessons %}{% set c = r.cells[loop.index0] %}<td><button class="cell" data-l="{{ l.id }}" data-s="{{ r.id }}"
+ data-p="{{ c.present if c and c.present is not none else '' }}" data-g="{{ c.grade if c and c.grade else '' }}"></button></td>{% endfor %}</tr>{% endfor %}
+</tbody></table></div><p class="hint">Красным выделены студенты со средним баллом ниже 3 или посещаемостью ниже 70%. Нажмите на дату, чтобы изменить тему занятия.</p>{% endif %}</div>
+<div id="pop"><button data-a="here">Был</button><button data-a="abs">Не был</button>
+<button data-a="2">2</button><button data-a="3">3</button><button data-a="4">4</button><button data-a="5">5</button><button data-a="clear">Сбросить</button></div>
+{% endblock %}
+{% block js %}<script>
+const GID={{ a.gid }},SID={{ a.sid }},pop=document.getElementById('pop');let cur=null;
+async function post(u,b){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});return r.json()}
+const lesson=b=>post('/api/lesson',{gid:GID,sid:SID,...b});
+function paint(b){const p=b.dataset.p,g=b.dataset.g;b.textContent=g||(p==='0'?'н':p==='1'?'•':'');
+ b.className='cell'+(g?' k'+g:p==='0'?' abs':p==='1'?' ok':'')}
+document.querySelectorAll('button.cell').forEach(b=>{paint(b);b.onclick=e=>{e.stopPropagation();cur=b;const r=b.getBoundingClientRect();
+ pop.style.left=Math.max(8,Math.min(r.left,innerWidth-256))+'px';pop.style.top=(r.bottom+6)+'px';pop.classList.add('open')}});
+document.addEventListener('click',()=>pop.classList.remove('open'));addEventListener('scroll',()=>pop.classList.remove('open'),true);
+pop.onclick=e=>e.stopPropagation();
+pop.querySelectorAll('button').forEach(x=>x.onclick=async()=>{
+ const b=cur,v=x.dataset.a,body={lesson:+b.dataset.l,student:+b.dataset.s};
+ if(v==='clear'){body.present=null;body.grade=null}else if(v==='here')body.present=1;else if(v==='abs')body.present=0;
+ else body.grade=b.dataset.g===v?null:+v;
+ try{const d=await post('/api/mark',body);b.dataset.p=d.present??'';b.dataset.g=d.grade??'';paint(b);
+  const row=b.closest('tr');row.querySelector('.avg').textContent=d.avg??'—';row.querySelector('.miss').textContent=d.missed;
+  row.querySelector('.pct').textContent=d.pct==null?'—':d.pct+'%';
+  row.classList.toggle('warn',(d.avg&&d.avg<3)||(d.pct!=null&&d.pct<70));pop.classList.remove('open');toast('Сохранено')}
+ catch(e){toast('Не удалось сохранить. Обновите страницу и попробуйте снова.')}});
+document.getElementById('add').onclick=async()=>{const d=await lesson({action:'add',day:document.getElementById('day').value,topic:document.getElementById('topic').value});
+ d.ok?location.reload():toast(d.error)};
+document.querySelectorAll('.dt').forEach(s=>s.onclick=async()=>{const t=prompt('Тема занятия',s.dataset.t);if(t===null)return;
+ await lesson({action:'topic',lesson:+s.closest('.lh').dataset.l,topic:t});location.reload()});
+document.querySelectorAll('.lh button').forEach(b=>b.onclick=async()=>{
+ if(b.dataset.a==='del'&&!confirm('Удалить занятие вместе с оценками и посещаемостью за этот день?'))return;
+ await lesson({action:b.dataset.a,lesson:+b.closest('.lh').dataset.l});location.reload()});
+</script>{% endblock %}
