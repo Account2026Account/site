@@ -1,10 +1,10 @@
 {% extends "base.html" %}{% block title %}{{ a.gname }}, {{ a.sname }}{% endblock %}
 {% block content %}<a class="back" href="{{ url_for('teacher') }}">← Все группы</a>
 <h1 class="in">{{ a.gname }}, {{ a.sname }}</h1>
-<p class="sub in" style="--i:1">Преподаватели: {{ team }}. Занятия появляются автоматически по расписанию. Нажмите на ячейку, чтобы отметить посещение или поставить оценку.</p>
-<div class="card in row" style="--i:2"><label>Внеплановое занятие: дата<input type="date" id="day" value="{{ today }}"></label>
-<label>Тема<input id="topic" placeholder="Необязательно"></label><button class="btn" id="add">Добавить</button>
-<a class="btn ghost" style="color:var(--ink);border-color:var(--line)" href="{{ url_for('export', gid=a.gid, sid=a.sid) }}">Скачать Excel</a></div>
+<p class="sub in" style="--i:1">Преподаватели: {{ team }}. Журнал доступен постоянно по назначению (группа + предмет), даже если занятия ещё не стоят в расписании. Колонки появляются по расписанию. Нажмите на ячейку, чтобы отметить посещение или оценку.</p>
+<div class="card in row" style="--i:2">
+<a class="btn ghost" style="color:var(--ink);border-color:var(--line)" href="{{ url_for('export', gid=a.gid, sid=a.sid) }}">Скачать Excel</a>
+</div>
 <div class="card in" style="--i:3">
 {% if not rows %}<p>В этой группе пока нет студентов. Их добавляет администратор.</p>
 {% elif not lessons %}<p>Занятий пока нет. Они появятся автоматически по расписанию.</p>
@@ -38,8 +38,6 @@ pop.querySelectorAll('button').forEach(x=>x.onclick=async()=>{
   row.querySelector('.pct').textContent=d.pct==null?'—':d.pct+'%';
   row.classList.toggle('warn',(d.avg&&d.avg<3)||(d.pct!=null&&d.pct<70));pop.classList.remove('open');toast('Сохранено')}
  catch(e){toast('Не удалось сохранить. Обновите страницу и попробуйте снова.')}});
-document.getElementById('add').onclick=async()=>{const d=await lesson({action:'add',day:document.getElementById('day').value,topic:document.getElementById('topic').value});
- d.ok?location.reload():toast(d.error)};
 document.querySelectorAll('.dt').forEach(s=>s.onclick=async()=>{const t=prompt('Тема занятия',s.dataset.t);if(t===null)return;
  await lesson({action:'topic',lesson:+s.closest('.lh').dataset.l,topic:t});location.reload()});
 document.querySelectorAll('.lh button').forEach(b=>b.onclick=async()=>{
