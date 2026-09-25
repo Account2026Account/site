@@ -3,7 +3,7 @@
 {% macro key(id) %}<button type="button" class="x k" title="Сменить пароль" onclick="resetPw({{ id }})">🔑</button>{% endmacro %}
 {% set roles = {'admin':'Администратор','dispatcher':'Диспетчер','teacher':'Преподаватель','student':'Студент'} %}
 <h1 class="in">Администрирование</h1>
-<div class="cnts in" style="--i:1"><div class="card"><b>{{ counts.groups }}</b><br><small>групп</small></div><div class="card"><b>{{ counts.students }}</b><br><small>студентов</small></div><div class="card"><b>{{ counts.teachers }}</b><br><small>преподавателей</small></div><div class="card"><b>{{ counts.lessons }}</b><br><small>занятий</small></div></div>
+<div class="cnts in" style="--i:1"><div class="card"><small>Групп</small><b>{{ counts.groups }}</b></div><div class="card"><small>Студентов</small><b>{{ counts.students }}</b></div><div class="card"><small>Преподавателей</small><b>{{ counts.teachers }}</b></div><div class="card"><small>Занятий</small><b>{{ counts.lessons }}</b></div></div>
 <div class="tabs in" style="--i:2"><button class="on" data-t="people">Люди</button><button data-t="structure">Группы и предметы</button><button data-t="assign">Назначения</button><button data-t="news">Объявления</button></div>
 <section class="pane on" id="people"><div class="card"><form class="row compact" method="post" action="{{ url_for('admin_act', act='user') }}">
 <select name="role"><option value="student">Студент</option><option value="teacher">Преподаватель</option><option value="dispatcher">Диспетчер</option></select>
