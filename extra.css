@@ -35,8 +35,10 @@ header{flex-wrap:wrap}
 .pane{display:none}.pane.on{display:block;animation:up .4s cubic-bezier(.2,.8,.2,1) both}
 .compact th,.compact td{padding:6px 8px;font-size:14px}.compact select,.compact input{padding:4px 8px;font-size:13px}
 .compact form{margin:0}.compact .act{display:flex;gap:2px;justify-content:flex-end}
-.cnts{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:14px}
-.cnts .card{padding:10px 14px;margin:0}.cnts b{font-size:24px;letter-spacing:-.02em}.cnts small{color:var(--mut)}
+.cnts{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:18px}
+.cnts .card{padding:14px 16px;margin:0;display:flex;flex-direction:column;gap:6px}
+.cnts b{font-size:28px;letter-spacing:-.02em;line-height:1.15;display:block}
+.cnts small{color:var(--mut);font-size:13px;line-height:1.3}
 .pill{display:inline-flex;align-items:center;gap:4px;background:#eef1ff;border-radius:20px;padding:2px 4px 2px 12px;margin:0 6px 6px 0}
 .pill form{display:inline;margin:0}.pill.me{background:var(--hl)}.pill .x{font-size:18px}
 .past{opacity:.5}
@@ -45,3 +47,154 @@ header{flex-wrap:wrap}
 .hw.done b{text-decoration:line-through;color:var(--mut)}.hw>div{flex:1;overflow-wrap:anywhere}.hw p{margin:4px 0 0;white-space:pre-line}
 .ent.cancel{background:#fff0f0}.ent.cancel b{text-decoration:line-through;color:var(--mut)}.ent.replace{background:#fffbe8}
 @media print{header,.blob,.noprint,.back,#toast{display:none!important}body{background:#fff}.card{break-inside:avoid;animation:none}}
+
+/* —— Группа в расписании —— */
+.it-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px}
+.it-subj{font-weight:700;font-size:15px;margin:2px 0 6px}
+.it-meta{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.group-badge{display:inline-flex;align-items:center;font-size:12px;font-weight:800;padding:3px 10px;border-radius:20px;background:var(--a);color:#fff;letter-spacing:.02em}
+.meta-item{font-size:13px;color:var(--mut)}
+.meta-item em{font-style:normal;opacity:.8}
+.it-note{font-size:13px;color:var(--mut);margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+.it-link{display:inline-block;margin-top:8px;font-size:13px;font-weight:600;color:var(--a);text-decoration:none}
+.it-link:hover{text-decoration:underline}
+.tile-top{margin-bottom:6px}
+
+/* —— Мобильное меню —— */
+.nav-toggle{display:none;background:transparent;border:1px solid #47557f;color:#fff;border-radius:10px;padding:6px 12px;font-size:18px;cursor:pointer;margin-left:auto}
+.nav{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto}
+.nav-user{color:#b8c0dd;font-size:13px;margin-right:4px}
+@media(max-width:820px){
+  .nav-toggle{display:inline-block}
+  .nav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--ink);padding:12px 16px 16px;flex-direction:column;align-items:stretch;gap:8px;z-index:50;box-shadow:0 12px 30px -10px #0008}
+  .nav.open{display:flex}
+  header{position:relative;flex-wrap:nowrap}
+  .nav .btn.ghost{border-color:#47557f;text-align:center}
+  .nav-user{margin:0 0 4px;text-align:center}
+}
+
+/* —— Тёмная тема —— */
+[data-theme=dark]{
+  --bg:#0f1420;--ink:#e8ecf6;--mut:#9aa3bd;--line:#2a3348;--card:#1a2234;--a:#5b7cff;--hl:#e6c84a;--ok:#2ecf8a;--bad:#ff6b6f
+}
+[data-theme=dark] body{background:var(--bg);color:var(--ink)}
+[data-theme=dark] .blob{opacity:.25}
+[data-theme=dark] header{background:#0a0e18}
+[data-theme=dark] .card{background:var(--card);border-color:var(--line)}
+[data-theme=dark] input,[data-theme=dark] select,[data-theme=dark] textarea{background:#121826;border-color:var(--line);color:#e8ecf6;color-scheme:dark}
+[data-theme=dark] input::placeholder,[data-theme=dark] textarea::placeholder{color:#7a849e}
+[data-theme=dark] .it{background:#121826}
+[data-theme=dark] .it.cancel{background:#2a1518}
+[data-theme=dark] .it.replace{background:#2a2510}
+[data-theme=dark] .tbl tbody tr:hover{background:#1e2740}
+[data-theme=dark] .jt th:first-child,.jt td:first-child{background:var(--card)}
+[data-theme=dark] .cell{background:#121826;border-color:var(--line);color:var(--ink)}
+[data-theme=dark] .cell.ok{background:#14352a;border-color:#1fa971;color:var(--ok)}
+[data-theme=dark] .cell.abs{background:#3a1a1c;border-color:#ff6b6f;color:var(--bad)}
+[data-theme=dark] .bar{background:#2a3348}
+[data-theme=dark] .grid-s th{background:#121826}
+[data-theme=dark] .tabs button,.tabs a{background:var(--card);border-color:var(--line);color:var(--ink)}
+[data-theme=dark] .tabs .on{background:var(--a);color:#fff;border-color:var(--a)}
+[data-theme=dark] .ent{background:#1e2740}
+[data-theme=dark] #pop{background:var(--card);border-color:var(--line)}
+[data-theme=dark] .btn.ghost{border-color:#47557f;color:inherit}
+[data-theme=dark] .day.today{box-shadow:0 0 0 3px #5b7cff33}
+[data-theme=dark] .pill{background:#1e2740}
+[data-theme=dark] .group-badge{background:var(--a)}
+
+
+/* —— Контраст: кнопки и селекты на светлой теме —— */
+header .btn.ghost,
+.nav .btn.ghost,
+.nav-toggle{color:#fff;border-color:#47557f}
+header .btn.ghost:hover,
+.nav .btn.ghost:hover{background:rgba(255,255,255,.12);color:#fff}
+
+.btn.ghost:hover{background:#e8ecf8;border-color:var(--a);color:var(--ink)}
+
+/* Вкладки: hover без потери читаемости */
+.tabs button:hover,.tabs a:hover{background:#e8ecf8;color:var(--ink)}
+.tabs .on:hover{background:var(--ink);color:#fff}
+
+/* Селекты: читаемые option на светлой теме */
+select{color-scheme:light}
+select option{background:#ffffff;color:#14213d}
+select option:checked{background:#2b4eff;color:#ffffff}
+
+/* Pill / бейджи — текст всегда читаемый */
+.pill{color:var(--ink)}
+.badge{color:#14213d}
+.badge.bad{color:#a3262a}
+
+/* Карточки-ссылки */
+a.tile{color:var(--ink)}
+a.tile:hover{color:var(--ink)}
+
+/* Компактные селекты в таблицах */
+.compact select{background:var(--card);color:var(--ink)}
+.tbl select{background:var(--card);color:var(--ink)}
+
+/* Тёмная тема: option и ghost-кнопки в контенте */
+[data-theme=dark] select{color-scheme:dark}
+[data-theme=dark] select option{background:#121826;color:#e8ecf6}
+[data-theme=dark] select option:checked{background:#5b7cff;color:#fff}
+[data-theme=dark] .btn.ghost{color:var(--ink);border-color:var(--line)}
+[data-theme=dark] .btn.ghost:hover{background:#1e2740;color:var(--ink);border-color:var(--a)}
+[data-theme=dark] header .btn.ghost,
+[data-theme=dark] .nav .btn.ghost{color:#fff;border-color:#47557f}
+[data-theme=dark] header .btn.ghost:hover,
+[data-theme=dark] .nav .btn.ghost:hover{background:rgba(255,255,255,.12);color:#fff}
+[data-theme=dark] .tabs button:hover,[data-theme=dark] .tabs a:hover{background:#1e2740;color:var(--ink)}
+[data-theme=dark] .tabs .on:hover{background:var(--a);color:#fff}
+[data-theme=dark] .badge{color:#14213d}
+[data-theme=dark] .pill{color:var(--ink)}
+[data-theme=dark] #pop button{color:var(--ink)}
+[data-theme=dark] #pop button:hover{background:var(--hl);color:#14213d}
+[data-theme=dark] .tbl tbody tr:hover td{color:var(--ink)}
+[data-theme=dark] a.tile{color:var(--ink)}
+
+.theme-btn{cursor:pointer}
+
+/* —— Формы: гарантированно светлый фон вне тёмной темы —— */
+html:not([data-theme=dark]) input,
+html:not([data-theme=dark]) select,
+html:not([data-theme=dark]) textarea{
+  background:#ffffff !important;
+  color:#14213d !important;
+  color-scheme:light;
+}
+html:not([data-theme=dark]) select option{background:#fff;color:#14213d}
+
+/* —— Задания —— */
+.hw-day{margin-bottom:22px}
+.hw-day h3{font-size:15px;color:var(--mut);margin:0 0 10px;font-weight:700;letter-spacing:.02em}
+.hw-card{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px;background:var(--card)}
+.hw-card.overdue{border-left:4px solid var(--bad)}
+.hw-card.today-due{border-left:4px solid var(--hl)}
+.hw-card.done{opacity:.72}
+.hw-card .hw-title{font-weight:800;font-size:16px;margin:0 0 4px}
+.hw-meta{font-size:13px;color:var(--mut);margin-bottom:8px}
+.hw-body{white-space:pre-line;margin:8px 0;font-size:14px}
+.hw-attach{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.hw-attach a,.hw-attach span{
+  display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;
+  background:#eef1ff;color:var(--a);font-size:13px;font-weight:600;text-decoration:none;border:1px solid var(--line)
+}
+.hw-attach a:hover{background:#dce3ff}
+.hw-notes{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
+.hw-notes textarea{min-height:72px;width:100%}
+.hw-notes .saved{font-size:12px;color:var(--ok);margin-top:4px}
+.attach-row{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:10px}
+.attach-row label{flex:1;min-width:140px}
+.hw-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.hw-filters .tabs a,.hw-filters .tabs button{font-size:13px;padding:6px 12px}
+.file-chip{display:inline-flex;align-items:center;gap:4px;background:#eef1ff;border-radius:8px;padding:4px 8px;font-size:12px;margin:4px 4px 0 0}
+.file-chip button{border:0;background:none;cursor:pointer;color:var(--mut);font-size:16px;line-height:1}
+[data-theme=dark] .hw-attach a,[data-theme=dark] .hw-attach span{background:#1e2740;border-color:var(--line);color:#8ab0ff}
+[data-theme=dark] .file-chip{background:#1e2740}
+[data-theme=dark] .hw-card{background:var(--card)}
+
+/* Счётчики / статистика: отступ числа от подписи */
+.stats .card .sub{margin-bottom:6px}
+.stats .big{margin-top:2px}
+
