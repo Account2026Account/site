@@ -4,10 +4,16 @@ from datetime import date, datetime, timedelta
 from functools import wraps
 from flask import Flask, Response, g, render_template, request, redirect, url_for, session, jsonify, flash, abort
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 
-DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "campus.db")
-app = Flask(__name__)
-app.secret_key = "change-this-secret-key"  # замените перед публикацией
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+_BASE = os.path.dirname(_ROOT)  # campuse_site/
+DB = os.path.join(_ROOT, "campus.db")
+UPLOADS = os.path.join(_BASE, "uploads")
+os.makedirs(UPLOADS, exist_ok=True)
+ALLOWED_EXT = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".zip", ".rar"}
+app = Flask(__name__, template_folder=os.path.join(_BASE, "templates"), static_folder=os.path.join(_BASE, "static"))
+app.secret_key = "123"  # замените перед публикацией
 
 # Связи: преподаватель -> назначение (группа + предмет); занятия и отметки общие для группы и предмета
 SCHEMA = """
@@ -132,6 +138,12 @@ CREATE TABLE IF NOT EXISTS homework(id INTEGER PRIMARY KEY, group_id INTEGER NOT
   title TEXT NOT NULL, body TEXT DEFAULT '', due TEXT, created TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS hw_done(hw_id INTEGER NOT NULL REFERENCES homework(id) ON DELETE CASCADE,
   student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, PRIMARY KEY(hw_id, student_id));
+CREATE TABLE IF NOT EXISTS hw_attach(id INTEGER PRIMARY KEY,
+  hw_id INTEGER NOT NULL REFERENCES homework(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL, name TEXT NOT NULL, url TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS hw_notes(hw_id INTEGER NOT NULL REFERENCES homework(id) ON DELETE CASCADE,
+  student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body TEXT DEFAULT '', updated TEXT NOT NULL, PRIMARY KEY(hw_id, student_id));
 """
 
 def setting(c, key):
@@ -568,7 +580,13 @@ def scope(d):
     if r == "student":
         return d.execute("SELECT group_id FROM users WHERE id=?", (session["uid"],)).fetchone()[0] or -1, None, None
     if r == "teacher":
-        return None, session["uid"], None
+        # преподаватель видит только свои занятия; может отфильтровать по группе
+        my_groups = d.execute("""SELECT DISTINCT g.id, g.name FROM assignments a
+            JOIN groups g ON g.id=a.group_id WHERE a.teacher_id=? ORDER BY g.name""", (session["uid"],)).fetchall()
+        gid = request.args.get("group", type=int)
+        if gid and not any(g["id"] == gid for g in my_groups):
+            gid = None
+        return gid, session["uid"], my_groups
     return request.args.get("group", type=int), None, d.execute("SELECT * FROM groups ORDER BY name").fetchall()
 
 @app.route("/schedule")
@@ -586,26 +604,163 @@ def schedule():
                 g = minutes(y["start"]) - minutes(x["end"])
                 if g > 0: y["gap_label"] = gap_label(g)
         days.append(dict(date=day, lst=lst))
+    is_teacher = session.get("role") == "teacher"
     return render_template("schedule.html", days=days, off=off, gid=gid if gid and gid > 0 else None, groups=groups, wd=WDF,
-                           today=date.today(), bells=bell_rows(d.execute("SELECT * FROM bells ORDER BY num").fetchall()))
+                           today=date.today(), bells=bell_rows(d.execute("SELECT * FROM bells ORDER BY num").fetchall()),
+                           is_teacher=is_teacher, show_group_filter=bool(groups))
 
-@app.route("/schedule.ics")
-def schedule_ics():
+@app.route("/schedule.xlsx")
+def schedule_xlsx():
+    """Экспорт расписания на неделю в Excel (сетка + список) с оформлением."""
     if "uid" not in session: return redirect(url_for("login"))
-    d = db(); gid, tid, _ = scope(d)
-    BS, CRLF = chr(92), chr(13) + chr(10)
-    esc = lambda t: str(t).replace(BS, BS * 2).replace(",", BS + ",").replace(";", BS + ";")
-    stamp = datetime.now().strftime("%Y%m%dT%H%M%S")
-    out = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Campus//RU", "CALSCALE:GREGORIAN"]
-    for o in occurrences(d, date.today(), date.today() + timedelta(days=42), gid=gid, tid=tid):
-        if o["status"] == "cancel": continue
-        ds = o["day"].replace("-", "")
-        out += ["BEGIN:VEVENT", f"UID:{o['id']}-{o['day']}@campus", f"DTSTAMP:{stamp}",
-                f"DTSTART:{ds}T{o['start'].replace(':', '')}00", f"DTEND:{ds}T{o['end'].replace(':', '')}00",
-                "SUMMARY:" + esc(o["sname"]), "LOCATION:" + esc("ауд. " + (o["room"] or "-")),
-                "DESCRIPTION:" + esc(f"{o['tname']}, {o['gname']}"), "END:VEVENT"]
-    out.append("END:VCALENDAR")
-    return Response(CRLF.join(out), mimetype="text/calendar", headers={"Content-Disposition": "attachment; filename=schedule.ics"})
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter as L
+    d, off = db(), request.args.get("week", 0, type=int)
+    gid, tid, groups = scope(d)
+    mon = date.today() - timedelta(days=date.today().weekday()) + timedelta(weeks=off)
+    occ = occurrences(d, mon, mon + timedelta(days=5), gid=gid, tid=tid)
+    bells = d.execute("SELECT * FROM bells ORDER BY num").fetchall()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Расписание"
+    ws.sheet_view.showGridLines = False
+    fill = lambda h: PatternFill("solid", fgColor=h)
+    thin = Side(style="thin", color="D9DEEC")
+    box = Border(left=thin, right=thin, top=thin, bottom=thin)
+    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    left = Alignment(horizontal="left", vertical="top", wrap_text=True)
+
+    title = "Расписание"
+    if gid and groups:
+        gname = next((g["name"] for g in groups if g["id"] == gid), None)
+        if gname:
+            title += f" · {gname}"
+    elif session.get("role") == "teacher":
+        title += " · мои занятия"
+    title += f"  {mon.strftime('%d.%m.%Y')} – {(mon + timedelta(days=5)).strftime('%d.%m.%Y')}"
+
+    ws["A1"] = title
+    ws["A1"].font = Font(size=16, bold=True, color="14213D")
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=7)
+    ws["A2"] = f"Выгружено {datetime.now():%d.%m.%Y %H:%M} · Campus"
+    ws["A2"].font = Font(color="66708C", size=10)
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=7)
+
+    # Заголовки
+    ws.cell(4, 1, "Пара / время").font = Font(bold=True, color="FFFFFF", size=11)
+    ws.cell(4, 1).fill = fill("14213D")
+    ws.cell(4, 1).alignment = center
+    ws.cell(4, 1).border = box
+    for i in range(6):
+        cell = ws.cell(4, 2 + i, f"{WDF[i]}\n{(mon + timedelta(days=i)).strftime('%d.%m')}")
+        cell.font = Font(bold=True, color="FFFFFF", size=11)
+        cell.fill = fill("14213D")
+        cell.alignment = center
+        cell.border = box
+    ws.row_dimensions[4].height = 36
+
+    by_day_bell = {}
+    for o in occ:
+        by_day_bell.setdefault((o["day"], o["num"]), []).append(o)
+
+    for ri, b in enumerate(bells, 5):
+        time_cell = ws.cell(ri, 1, f'{b["num"]} пара\n{b["start"]}–{b["end"]}')
+        time_cell.font = Font(bold=True, size=10)
+        time_cell.alignment = center
+        time_cell.border = box
+        time_cell.fill = fill("EEF1F8")
+        max_lines = 1
+        for di in range(6):
+            day = (mon + timedelta(days=di)).isoformat()
+            items = by_day_bell.get((day, b["num"]), [])
+            cell = ws.cell(ri, 2 + di)
+            cell.border = box
+            cell.alignment = left
+            if not items:
+                cell.value = ""
+                continue
+            blocks = []
+            for o in items:
+                st = ""
+                if o["status"] == "cancel":
+                    st = " [отменено]"
+                elif o["status"] == "replace":
+                    st = " [замена]"
+                block = f'{o["sname"]}{st}\n{o["gname"]}\n{o["tname"]}\nауд. {o["room"] or "—"}'
+                if o.get("note"):
+                    block += f'\n{o["note"]}'
+                blocks.append(block)
+            text = "\n———\n".join(blocks)
+            cell.value = text
+            max_lines = max(max_lines, text.count("\n") + 1)
+            if any(o["status"] == "cancel" for o in items):
+                cell.fill = fill("FFE4E4")
+            elif any(o["status"] == "replace" for o in items):
+                cell.fill = fill("FFFBE8")
+            else:
+                cell.fill = fill("F5F7FE")
+        ws.row_dimensions[ri].height = max(50, 14 * max_lines + 8)
+
+    ws.column_dimensions["A"].width = 14
+    for i in range(2, 8):
+        ws.column_dimensions[L(i)].width = 22
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.fitToPage = True
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.freeze_panes = "B5"
+
+    # Лист «Список»
+    ws2 = wb.create_sheet("Список")
+    ws2.sheet_view.showGridLines = False
+    ws2["A1"] = title
+    ws2["A1"].font = Font(size=14, bold=True, color="14213D")
+    ws2.merge_cells("A1:J1")
+    cols = ["Дата", "День", "Пара", "Время", "Предмет", "Группа", "Преподаватель", "Аудитория", "Статус", "Примечание"]
+    for i, h in enumerate(cols, 1):
+        x = ws2.cell(3, i, h)
+        x.font = Font(bold=True, color="FFFFFF")
+        x.fill = fill("14213D")
+        x.alignment = center
+        x.border = box
+    for ri, o in enumerate(sorted(occ, key=lambda x: (x["day"], x["start"])), 4):
+        st = {"ok": "ок", "cancel": "отменено", "replace": "замена"}.get(o["status"], o["status"])
+        vals = [
+            f'{o["day"][8:10]}.{o["day"][5:7]}.{o["day"][:4]}',
+            WDF[o["weekday"]],
+            o["num"],
+            f'{o["start"]}–{o["end"]}',
+            o["sname"],
+            o["gname"],
+            o["tname"],
+            o["room"] or "—",
+            st,
+            o.get("note") or "",
+        ]
+        for ci, v in enumerate(vals, 1):
+            x = ws2.cell(ri, ci, v)
+            x.border = box
+            x.alignment = center if ci <= 4 else left
+            if o["status"] == "cancel":
+                x.fill = fill("FFE4E4")
+            elif o["status"] == "replace":
+                x.fill = fill("FFFBE8")
+    for i, w in enumerate([12, 10, 8, 12, 22, 12, 20, 12, 12, 24], 1):
+        ws2.column_dimensions[L(i)].width = w
+    if occ:
+        ws2.auto_filter.ref = f"A3:J{3 + len(occ)}"
+    ws2.freeze_panes = "A4"
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    fname = f"schedule_{mon.strftime('%Y%m%d')}.xlsx"
+    return Response(
+        buf.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={fname}"},
+    )
 
 @app.route("/dispatcher")
 @role("dispatcher", "admin")
@@ -730,58 +885,175 @@ def duty_act(act):
     return redirect(url_for("duty"))
 
 # ---------- Задания ----------
+
 @app.route("/homework")
 def homework():
-    if session.get("role") not in ("teacher", "student"): return redirect(url_for("login"))
-    d, uid = db(), session["uid"]
-    if session["role"] == "teacher":
-        courses = d.execute("""SELECT g.id gid, s.id sid, g.name gname, s.name sname FROM assignments a JOIN groups g ON g.id=a.group_id
-          JOIN subjects s ON s.id=a.subject_id WHERE a.teacher_id=? ORDER BY g.name, s.name""", (uid,)).fetchall()
+    if "uid" not in session: return redirect(url_for("login"))
+    d, uid, role = db(), session["uid"], session["role"]
+    if role not in ("teacher", "student"): abort(403)
+    courses = None
+    if role == "teacher":
+        courses = d.execute("""SELECT g.id gid, s.id sid, g.name gname, s.name sname FROM assignments a
+            JOIN groups g ON g.id=a.group_id JOIN subjects s ON s.id=a.subject_id
+            WHERE a.teacher_id=? ORDER BY g.name, s.name""", (uid,)).fetchall()
         rows = d.execute("""SELECT h.*, g.name gname, s.name sname,
           (SELECT COUNT(*) FROM hw_done x WHERE x.hw_id=h.id) done,
           (SELECT COUNT(*) FROM users u WHERE u.group_id=h.group_id AND u.role='student') total
           FROM homework h JOIN groups g ON g.id=h.group_id JOIN subjects s ON s.id=h.subject_id
           WHERE EXISTS(SELECT 1 FROM assignments a WHERE a.teacher_id=? AND a.group_id=h.group_id AND a.subject_id=h.subject_id)
-          ORDER BY h.due DESC, h.id DESC""", (uid,)).fetchall()
+          ORDER BY COALESCE(h.due, '9999'), h.id DESC""", (uid,)).fetchall()
+        notes = {}
     else:
-        courses = None
         gid = d.execute("SELECT group_id FROM users WHERE id=?", (uid,)).fetchone()[0]
         rows = d.execute("""SELECT h.*, s.name sname, u.name author,
           EXISTS(SELECT 1 FROM hw_done x WHERE x.hw_id=h.id AND x.student_id=?) done
           FROM homework h JOIN subjects s ON s.id=h.subject_id LEFT JOIN users u ON u.id=h.author_id
-          WHERE h.group_id=? ORDER BY done, h.due""", (uid, gid)).fetchall()
-    return render_template("homework.html", courses=courses, rows=rows, today=date.today().isoformat())
+          WHERE h.group_id=? ORDER BY done, COALESCE(h.due, '9999'), h.id DESC""", (uid, gid)).fetchall()
+        notes = {r["hw_id"]: r["body"] for r in d.execute(
+            "SELECT hw_id, body FROM hw_notes WHERE student_id=?", (uid,))}
+    # attachments for all listed homework
+    ids = [r["id"] for r in rows]
+    attach = {}
+    if ids:
+        q = ",".join("?" * len(ids))
+        for a in d.execute(f"SELECT * FROM hw_attach WHERE hw_id IN ({q}) ORDER BY id", ids):
+            attach.setdefault(a["hw_id"], []).append(a)
+    # group by due date (or 'без срока')
+    from collections import OrderedDict
+    by_day = OrderedDict()
+    today = date.today().isoformat()
+    for r in rows:
+        key = r["due"] or "без срока"
+        by_day.setdefault(key, []).append(r)
+    return render_template("homework.html", courses=courses, by_day=by_day, rows=rows,
+                           today=today, attach=attach, notes=notes, is_teacher=(role == "teacher"))
 
 @app.post("/homework/add")
 @role("teacher")
 def homework_add():
     f, d = request.form, db()
-    try: gid, sid = map(int, f["course"].split(":"))
-    except (ValueError, KeyError): abort(400)
+    try:
+        gid, sid = map(int, f["course"].split(":"))
+    except (ValueError, KeyError):
+        abort(400)
     course(gid, sid)
-    try: due = date.fromisoformat(f["due"]).isoformat() if f.get("due") else None
-    except ValueError: due = None
-    if f["title"].strip():
-        d.execute("INSERT INTO homework(group_id,subject_id,author_id,title,body,due,created) VALUES(?,?,?,?,?,?,?)",
-                  (gid, sid, session["uid"], f["title"].strip(), f.get("body", "").strip(), due, date.today().isoformat()))
-        d.commit(); flash("Задание опубликовано")
+    try:
+        due = date.fromisoformat(f["due"]).isoformat() if f.get("due") else None
+    except ValueError:
+        due = None
+    title = f["title"].strip()
+    if not title:
+        flash("Укажите название"); return redirect(url_for("homework"))
+    cur = d.execute(
+        "INSERT INTO homework(group_id,subject_id,author_id,title,body,due,created) VALUES(?,?,?,?,?,?,?)",
+        (gid, sid, session["uid"], title, f.get("body", "").strip(), due, date.today().isoformat()))
+    hw_id = cur.lastrowid
+    # links (one per line or single field)
+    for link in (f.get("links") or "").splitlines():
+        link = link.strip()
+        if not link:
+            continue
+        if not link.startswith(("http://", "https://")):
+            link = "https://" + link
+        name = f.get("link_name", "").strip() or link
+        d.execute("INSERT INTO hw_attach(hw_id,kind,name,url) VALUES(?,?,?,?)", (hw_id, "link", name[:120], link[:500]))
+    # files
+    files = request.files.getlist("files")
+    for fs in files:
+        if not fs or not fs.filename:
+            continue
+        fn = secure_filename(fs.filename)
+        ext = os.path.splitext(fn)[1].lower()
+        if ext not in ALLOWED_EXT:
+            continue
+        if fs.content_length and fs.content_length > 15 * 1024 * 1024:
+            continue
+        stored = f"{hw_id}_{int(datetime.now().timestamp())}_{fn}"
+        path = os.path.join(UPLOADS, stored)
+        fs.save(path)
+        d.execute("INSERT INTO hw_attach(hw_id,kind,name,url) VALUES(?,?,?,?)",
+                  (hw_id, "file", fn, stored))
+    d.commit()
+    flash("Задание опубликовано")
     return redirect(url_for("homework"))
 
 @app.post("/homework/delete")
 @role("teacher")
 def homework_del():
-    d = db(); d.execute("DELETE FROM homework WHERE id=? AND author_id=?", (request.form["id"], session["uid"])); d.commit()
+    d = db()
+    hid = request.form["id"]
+    row = d.execute("SELECT id FROM homework WHERE id=? AND author_id=?", (hid, session["uid"])).fetchone()
+    if row:
+        for a in d.execute("SELECT url, kind FROM hw_attach WHERE hw_id=?", (hid,)):
+            if a["kind"] == "file":
+                fp = os.path.join(UPLOADS, a["url"])
+                if os.path.isfile(fp):
+                    try: os.remove(fp)
+                    except OSError: pass
+        d.execute("DELETE FROM homework WHERE id=?", (hid,))
+        d.commit()
     return redirect(url_for("homework"))
 
 @app.post("/homework/done")
 @role("student")
 def homework_done():
     j, d, uid = request.get_json(), db(), session["uid"]
-    if not d.execute("SELECT 1 FROM homework h JOIN users u ON u.group_id=h.group_id WHERE h.id=? AND u.id=?", (j["id"], uid)).fetchone(): abort(403)
-    if j["done"]: d.execute("INSERT OR IGNORE INTO hw_done VALUES(?,?)", (j["id"], uid))
-    else: d.execute("DELETE FROM hw_done WHERE hw_id=? AND student_id=?", (j["id"], uid))
+    if not d.execute("SELECT 1 FROM homework h JOIN users u ON u.group_id=h.group_id WHERE h.id=? AND u.id=?",
+                     (j["id"], uid)).fetchone():
+        abort(403)
+    if j["done"]:
+        d.execute("INSERT OR IGNORE INTO hw_done VALUES(?,?)", (j["id"], uid))
+    else:
+        d.execute("DELETE FROM hw_done WHERE hw_id=? AND student_id=?", (j["id"], uid))
     d.commit()
     return jsonify(ok=True)
+
+@app.post("/homework/note")
+@role("student")
+def homework_note():
+    j, d, uid = request.get_json(), db(), session["uid"]
+    if not d.execute("SELECT 1 FROM homework h JOIN users u ON u.group_id=h.group_id WHERE h.id=? AND u.id=?",
+                     (j["id"], uid)).fetchone():
+        abort(403)
+    body = (j.get("body") or "").strip()
+    now = datetime.now().strftime("%d.%m.%Y %H:%M")
+    if body:
+        d.execute("""INSERT INTO hw_notes(hw_id,student_id,body,updated) VALUES(?,?,?,?)
+          ON CONFLICT(hw_id,student_id) DO UPDATE SET body=excluded.body, updated=excluded.updated""",
+                  (j["id"], uid, body, now))
+    else:
+        d.execute("DELETE FROM hw_notes WHERE hw_id=? AND student_id=?", (j["id"], uid))
+    d.commit()
+    return jsonify(ok=True, updated=now)
+
+@app.route("/uploads/<path:name>")
+def serve_upload(name):
+    if "uid" not in session:
+        abort(403)
+    # only basename
+    name = os.path.basename(name)
+    path = os.path.join(UPLOADS, name)
+    if not os.path.isfile(path):
+        abort(404)
+    # check access: teacher of assignment or student of group
+    att = db().execute("SELECT a.hw_id, h.group_id, h.subject_id FROM hw_attach a JOIN homework h ON h.id=a.hw_id WHERE a.url=? AND a.kind='file'",
+                       (name,)).fetchone()
+    if not att:
+        abort(404)
+    role, uid = session["role"], session["uid"]
+    d = db()
+    if role == "teacher":
+        if not d.execute("SELECT 1 FROM assignments WHERE teacher_id=? AND group_id=? AND subject_id=?",
+                         (uid, att["group_id"], att["subject_id"])).fetchone():
+            abort(403)
+    elif role == "student":
+        if not d.execute("SELECT 1 FROM users WHERE id=? AND group_id=?", (uid, att["group_id"])).fetchone():
+            abort(403)
+    else:
+        abort(403)
+    from flask import send_from_directory
+    return send_from_directory(UPLOADS, name, as_attachment=False)
+
 
 if __name__ == "__main__":
     setup()
