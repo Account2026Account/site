@@ -1,0 +1,10 @@
+<div class="card in" style="--i:1"><h2>Сегодня, {{ WDF[now.weekday()] }}, {{ now.strftime('%d.%m.%Y') }}</h2>
+{% for o in today_items %}<div class="it {{ o.status }}"><div class="it-head"><b>{{ o.num }} пара, {{ o.start }}–{{ o.end }}</b>{% if o.status == 'cancel' %}<span class="badge bad">Отменено</span>{% elif o.status == 'replace' %}<span class="badge">Замена</span>{% endif %}</div>
+<div class="it-subj">{{ o.sname }}</div>
+<div class="it-meta"><span class="group-badge">{{ o.gname }}</span><span class="meta-item">{{ o.tname }}</span><span class="meta-item">ауд. {{ o.room or '—' }}</span>{% if o.note %}<span class="meta-item">{{ o.note }}</span>{% endif %}</div></div>
+{% else %}<p class="sub" style="margin:0">Сегодня занятий нет.</p>{% endfor %}
+<a class="back" style="margin:8px 0 0" href="{{ url_for('schedule') }}">Расписание на неделю</a></div>
+{% if changes_items %}<div class="card in" style="--i:2"><h2>Изменения в расписании на неделю</h2>
+{% for o in changes_items %}<div class="it {{ o.status }}"><div class="it-head"><b>{{ o.day[8:10] }}.{{ o.day[5:7] }}, {{ o.num }} пара</b>{% if o.status == 'cancel' %}<span class="badge bad">Отменено</span>{% else %}<span class="badge">Замена</span>{% endif %}</div>
+<div class="it-subj">{{ o.sname }}</div>
+<div class="it-meta"><span class="group-badge">{{ o.gname }}</span><span class="meta-item">{{ o.tname }}{% if o.status == 'replace' and o.tname != o.orig_tname %} (вместо {{ o.orig_tname }}){% endif %}</span><span class="meta-item">ауд. {{ o.room or '—' }}</span>{% if o.note %}<span class="meta-item">{{ o.note }}</span>{% endif %}</div></div>{% endfor %}</div>{% endif %}

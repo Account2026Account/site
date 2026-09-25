@@ -1,0 +1,50 @@
+{% extends "base.html" %}{% block title %}Расписание — Campus{% endblock %}
+{% block content %}<a class="back" href="{{ url_for('index') }}">← В главное меню</a><h1 class="in">Расписание</h1>
+{% if is_teacher %}<p class="sub in" style="--i:0">Ваши занятия{% if gid %} · фильтр по группе{% endif %}. У каждой пары указана <b>группа</b>.</p>{% endif %}
+<div class="wk in" style="--i:1">
+<a class="btn ghost" style="color:var(--ink);border-color:var(--line)" href="{{ url_for('schedule', week=off - 1, group=gid) }}">← Неделя</a>
+<b>{{ days[0].date.strftime('%d.%m.%Y') }} – {{ days[5].date.strftime('%d.%m.%Y') }}</b>
+<a class="btn ghost" style="color:var(--ink);border-color:var(--line)" href="{{ url_for('schedule', week=off + 1, group=gid) }}">Неделя →</a>
+{% if off %}<a class="back" style="margin:0" href="{{ url_for('schedule', group=gid) }}">Текущая неделя</a>{% endif %}
+<a class="btn ghost noprint" style="color:var(--ink);border-color:var(--line)" href="{{ url_for('schedule_xlsx', week=off, group=gid) }}">Скачать Excel</a>
+<button class="btn ghost noprint" style="color:var(--ink);border-color:var(--line)" onclick="window.print()">Печать</button>
+{% if show_group_filter %}<form method="get" style="margin-left:auto"><input type="hidden" name="week" value="{{ off }}"><select name="group" onchange="this.form.submit()"><option value="">{% if is_teacher %}Все мои группы{% else %}Все группы{% endif %}</option>{% for g in groups %}<option value="{{ g.id }}"{% if g.id == gid %} selected{% endif %}>{{ g.name }}</option>{% endfor %}</select></form>{% endif %}
+</div>
+<div class="days">{% for dd in days %}<div class="card day in {{ 'today' if dd.date == today }}" style="--i:{{ loop.index + 1 }}" data-date="{{ dd.date.isoformat() }}"><h2>{{ wd[loop.index0] }}, {{ dd.date.strftime('%d.%m') }}</h2>
+{% for o in dd.lst %}{% if o.gap_label %}<div class="gap">{{ o.gap_label }}</div>{% endif %}
+<div class="it {{ o.status }}" data-start="{{ o.start }}" data-end="{{ o.end }}"><div class="it-head"><b>{{ o.num }} пара, {{ o.start }}–{{ o.end }}</b>{% if o.status == 'cancel' %}<span class="badge bad">Отменено</span>{% elif o.status == 'replace' %}<span class="badge">Замена</span>{% endif %}<span class="badge now-badge" style="display:none;background:var(--ok);color:#fff">Сейчас</span></div>
+<div class="it-subj">{{ o.sname }}</div>
+<div class="it-meta">
+<span class="group-badge" title="Группа">{{ o.gname }}</span>
+<span class="meta-item">{{ o.tname }}{% if o.status == 'replace' and o.tname != o.orig_tname %} <em>(вместо {{ o.orig_tname }})</em>{% endif %}</span>
+<span class="meta-item">ауд. {{ o.room or '—' }}</span>
+</div>
+{% if o.note %}<div class="it-note">{{ o.note }}</div>{% endif %}
+{% if is_teacher and o.status != 'cancel' %}<a class="it-link noprint" href="{{ url_for('journal', gid=o.gid, sid=o.sid) }}">Журнал →</a>{% endif %}
+</div>
+{% else %}<p class="sub" style="margin:0">Занятий нет</p>{% endfor %}</div>{% endfor %}</div>
+<div class="card in" style="margin-top:18px"><h2>Звонки</h2>{% for b in bells %}{% if b.gap_label %}<div class="gap" style="text-align:left;margin:0 0 4px">{{ b.gap_label }}</div>{% endif %}<div>{{ b.num }} пара: <b>{{ b.start }}–{{ b.end }}</b></div>{% endfor %}</div>
+{% endblock %}
+{% block js %}
+<script>
+(function(){
+  const now=new Date();
+  const todayStr=now.toISOString().slice(0,10);
+  const mins=now.getHours()*60+now.getMinutes();
+  document.querySelectorAll('.day[data-date="'+todayStr+'"] .it').forEach(it=>{
+    const s=it.dataset.start,e=it.dataset.end;
+    if(!s||!e) return;
+    const [sh,sm]=s.split(':').map(Number),[eh,em]=e.split(':').map(Number);
+    const start=sh*60+sm, end=eh*60+em;
+    if(mins>=start && mins<end){
+      it.classList.add('now');
+      const b=it.querySelector('.now-badge'); if(b) b.style.display='inline-block';
+    }
+  });
+})();
+</script>
+<style>
+.it.now{box-shadow:0 0 0 2px var(--ok);background:#e9f8f1}
+[data-theme=dark] .it.now{background:#14352a}
+</style>
+{% endblock %}

@@ -1,0 +1,7 @@
+<div class="card in" style="--i:2"><h2>Объявления</h2>
+{% if groups is not none %}<form class="row" method="post" action="{{ url_for('announce') }}" style="margin-bottom:14px">
+<select name="group_id">{% if all_ok %}<option value="">Все группы</option>{% endif %}{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select>
+<input name="title" placeholder="Заголовок" required><textarea name="body" placeholder="Текст объявления" required></textarea><button class="btn">Опубликовать</button></form>{% endif %}
+{% for a in anns %}<div class="ann"><div class="row" style="justify-content:space-between;align-items:baseline"><b>{{ a.title }}</b>
+{% if can_del %}<form method="post" action="{{ url_for('announce_del') }}"><input type="hidden" name="id" value="{{ a.id }}"><button class="x" title="Удалить">×</button></form>{% endif %}</div>
+<p>{{ a.body }}</p><small>{{ a.author }}, {{ a.gname or 'все группы' }}, {{ a.created }}</small></div>{% else %}<p class="sub">Объявлений пока нет.</p>{% endfor %}</div>
