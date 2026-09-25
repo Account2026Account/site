@@ -1,8 +1,0 @@
-{% extends "base.html" %}{% block title %}Профиль — Campus{% endblock %}
-{% block content %}<a class="back" href="{{ url_for('index') }}">← Назад</a><h1 class="in">Профиль</h1>
-<p class="sub in" style="--i:1">{{ session.name }}. Здесь можно сменить пароль.</p>
-<form class="card in narrow" style="--i:2" method="post"><h2>Смена пароля</h2><div class="row">
-<label>Текущий пароль<input type="password" name="old" required></label>
-<label>Новый пароль (от 6 символов)<input type="password" name="new" required minlength="6"></label>
-<label>Повторите новый пароль<input type="password" name="again" required></label>
-<button class="btn">Сохранить пароль</button></div></form>{% endblock %}
