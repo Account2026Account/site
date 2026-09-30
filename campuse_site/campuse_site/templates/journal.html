@@ -1,0 +1,247 @@
+{% extends "base.html" %}{% block title %}{{ a.gname }}, {{ a.sname }}{% endblock %}
+{% block content %}<a class="back" href="{{ url_for('teacher') }}">← Все группы</a>
+<h1 class="in">{{ a.gname }}, {{ a.sname }}</h1>
+<p class="sub in" style="--i:1">Преподаватели: {{ team }}. {% if can_edit %}Нажмите на ячейку — посещение или оценка. Колонка ★ — выдача доп. баллов студенту.{% else %}<b>Режим просмотра</b> — редактирование недоступно.{% endif %}</p>
+
+{% set I = url_for('static', filename='icons') %}
+<div class="row in" style="--i:2;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+  <a class="btn ghost btn-ico" href="{{ url_for('export', gid=a.gid, sid=a.sid) }}">
+    <img class="ico" src="{{ I }}/download.svg" width="18" height="18" alt=""> Скачать Excel
+  </a>
+  <a class="btn ghost btn-ico" href="{{ url_for('finals_page', gid=a.gid, sid=a.sid) }}">
+    <img class="ico" src="{{ I }}/clipboard.svg" width="18" height="18" alt=""> Итоговые оценки
+  </a>
+</div>
+
+<div class="card in collapsible" style="--i:2" id="bonusRulesCard">
+  <button type="button" class="collapse-toggle" id="bonusToggle" aria-expanded="false">
+    <img class="ico collapse-icon" src="{{ url_for('static', filename='icons/star.svg') }}" width="18" height="18" alt="">
+    <span>Доп. баллы — условия получения</span>
+    <span class="collapse-chevron">▸</span>
+  </button>
+  <div class="collapse-body" id="bonusBody" hidden>
+    <p class="sub" style="margin:0 0 8px">Общие правила для всей группы по этому предмету (видят студенты).</p>
+    <textarea id="rulesCond" rows="2" placeholder="Например: активность на паре, доклад, помощь одногруппникам…" style="width:100%">{{ subject_conditions or '' }}</textarea>
+    <div class="row" style="margin-top:10px;justify-content:flex-end">
+      <button type="button" class="btn" id="rulesSave">Сохранить условия</button>
+    </div>
+  </div>
+</div>
+
+<div class="card in" style="--i:3">
+{% if not rows %}<p>В этой группе пока нет студентов. Их добавляет администратор.</p>
+{% elif not lessons %}<p>Занятий пока нет. Они появятся автоматически по расписанию.</p>
+{% else %}<div class="scroll"><table class="jt"><thead><tr><th>Студент</th><th>Ср. балл</th><th>Пропуски</th><th>Посещаемость</th><th>Доп. баллы</th>
+{% for l in lessons %}<th class="lh" data-l="{{ l.id }}"><small class="dt" data-t="{{ l.topic }}" title="{{ l.topic or 'Тема не указана, нажмите чтобы добавить' }}{% if l.tname %} ({{ l.tname }}){% endif %}">{{ l.day[8:10] }}.{{ l.day[5:7] }}</small>
+<button data-a="all" title="Отметить всех присутствующими">✓</button><button data-a="del" title="Удалить занятие">×</button></th>{% endfor %}</tr></thead>
+<tbody>{% for r in rows %}<tr class="{{ 'warn' if (r.avg and r.avg < 3) or (r.pct is not none and r.pct < 70) }}" data-sid="{{ r.id }}"><td>{{ r.name }}</td><td><b class="avg">{{ r.avg or '—' }}</b></td><td class="miss">{{ r.missed }}</td>
+<td class="pct">{{ (r.pct ~ '%') if r.pct is not none else '—' }}</td>
+<td class="bonus-cell">
+  <button type="button" class="btn ghost bonus-edit" style="padding:4px 10px;font-size:13px" data-s="{{ r.id }}" data-bal="{{ r.bonus_balance }}" title="Выдать / изменить баланс">
+    <span class="bal-num">{{ r.bonus_balance }}</span>
+    <img class="ico" src="{{ url_for('static', filename='icons/star.svg') }}" width="14" height="14" alt="" style="vertical-align:-2px">
+  </button>
+</td>
+{% for l in lessons %}{% set c = r.cells[loop.index0] %}{% set ap = (r.applied or {}).get(l.id) %}<td><button class="cell" data-l="{{ l.id }}" data-s="{{ r.id }}"
+ data-p="{{ c['present'] if c and c['present'] is not none else '' }}" data-g="{{ c['grade'] if c and c['grade'] else '' }}"
+ data-ex="{{ c['excuse'] if c and c['excuse'] else '' }}"
+ {% if ap %}data-app="{{ ap['id'] }}" title="Доп. баллы: было {{ ap['original_grade'] }} → {{ ap['new_grade'] }}"{% endif %}></button>{% if ap %}<span class="bonus-chip" title="Применено {{ ap['points_used'] }} доп. балл(ов)">+{{ ap['points_used'] }}</span>{% endif %}</td>{% endfor %}</tr>{% endfor %}
+</tbody></table></div><p class="hint">Красным — средний &lt; 3 или посещаемость &lt; 70%. «н» — не был, «у» — уважительная причина. ★ — доп. баллы. Условия доп. баллов — в сворачиваемом блоке.</p>{% endif %}</div>
+<div id="pop">
+<div class="excuse-hint" style="display:none;width:100%;font-size:12px;color:var(--mut);padding:2px 4px 6px;border-bottom:1px solid var(--line);margin-bottom:4px"></div>
+<button data-a="here">Был</button><button data-a="abs">Не был</button>
+<button data-a="excused">Уваж. причина</button>
+<button data-a="2">2</button><button data-a="3">3</button><button data-a="4">4</button><button data-a="5">5</button><button data-a="clear">Сбросить</button>
+<button data-a="cancel-bonus" style="display:none;border-color:var(--bad);color:var(--bad)">Отменить доп. баллы</button></div>
+
+<div id="excuseModal" style="display:none;position:fixed;inset:0;z-index:30;background:rgba(20,33,61,.45);align-items:center;justify-content:center">
+  <div class="card" style="max-width:400px;width:90%;margin:auto;animation:up .3s">
+    <h2 style="margin-bottom:8px">Уважительная причина</h2>
+    <p class="sub" style="margin-bottom:10px">Укажите причину отсутствия (необязательно, но рекомендуется).</p>
+    <input type="text" id="excuseReason" placeholder="Например: больничный, справка, семейные обстоятельства…" style="width:100%;margin-bottom:14px">
+    <div class="row" style="justify-content:flex-end">
+      <button type="button" class="btn ghost" id="excuseCancel">Отмена</button>
+      <button type="button" class="btn" id="excuseSave">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div id="bonusModal" style="display:none;position:fixed;inset:0;z-index:30;background:rgba(20,33,61,.45);align-items:center;justify-content:center">
+  <div class="card" style="max-width:420px;width:90%;margin:auto;animation:up .3s">
+    <h2 style="margin-bottom:8px">Выдать доп. баллы</h2>
+    <p class="sub" id="bonusModalName" style="margin-bottom:12px"></p>
+    <label class="sub">Баланс (сколько баллов доступно студенту)</label>
+    <input type="number" id="bonusBal" min="0" max="100" value="0" style="width:100%;margin:6px 0 12px">
+    <label class="sub">Причина выдачи <span style="opacity:.7">(необязательно)</span></label>
+    <input type="text" id="bonusReason" placeholder="Например: доклад 20.03, помощь на паре…" style="width:100%;margin:6px 0 14px">
+    <div class="row" style="justify-content:flex-end">
+      <button type="button" class="btn ghost" id="bonusCancel">Отмена</button>
+      <button type="button" class="btn" id="bonusSave">Сохранить</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block js %}<script>
+const GID={{ a.gid }},SID={{ a.sid }},CAN_EDIT={{ 'true' if can_edit|default(true) else 'false' }},pop=document.getElementById('pop');
+function softReload(){try{sessionStorage.setItem('campus_scroll:'+location.pathname,String(window.scrollY||window.pageYOffset||0))}catch(e){}
+location.reload();}
+if(!CAN_EDIT){document.addEventListener('DOMContentLoaded',()=>{document.querySelectorAll('.cell,.lh button,.bonus-edit,#rulesSave').forEach(el=>{el.style.pointerEvents='none';el.style.opacity='0.65'});});}
+let cur=null,bonusTarget=null;
+async function post(u,b){
+  const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+  const txt=await r.text();
+  let d;
+  try{d=JSON.parse(txt)}catch(e){d={ok:false,error:'HTTP '+r.status+(r.status===404?' — обновите app.py и перезапустите сервер':'')}}
+  if(!r.ok){d.ok=false; if(!d.error)d.error='Ошибка '+r.status+(r.status===404?' — обновите app.py и перезапустите сервер':'')}
+  return d;
+}
+const lesson=b=>post('/api/lesson',{gid:GID,sid:SID,...b});
+function paint(b){
+  const p=b.dataset.p,g=b.dataset.g,ex=b.dataset.ex||'';
+  b.textContent=g||(p==='2'?'у':p==='0'?'н':p==='1'?'•':'');
+  b.className='cell'+(g?' k'+g:p==='2'?' exc':p==='0'?' abs':p==='1'?' ok':'');
+  b.title=p==='2'?(ex?('Уваж.: '+ex):'Уважительная причина'):(ex||'');
+  // chip with reason under cell
+  let chip=b.parentNode.querySelector('.excuse-chip');
+  if(p==='2' && ex){
+    if(!chip){chip=document.createElement('span');chip.className='excuse-chip';b.parentNode.appendChild(chip)}
+    chip.textContent=ex;chip.title=ex;chip.style.display='';
+  } else if(chip){chip.style.display='none'}
+}
+document.querySelectorAll('button.cell').forEach(b=>{
+  paint(b);
+  b.onclick=e=>{
+    e.stopPropagation();cur=b;
+    pop.classList.add('open');
+    // measure after open for correct width
+    const r=b.getBoundingClientRect();
+    const pw=pop.offsetWidth||240, ph=pop.offsetHeight||120;
+    let left=r.left+r.width/2-pw/2;
+    left=Math.max(8, Math.min(left, window.innerWidth-pw-8));
+    let top=r.bottom+6;
+    if(top+ph>window.innerHeight-8) top=Math.max(8, r.top-ph-6);
+    pop.style.left=left+'px';
+    pop.style.top=top+'px';
+    pop.style.right='auto';
+    const cb=pop.querySelector('[data-a="cancel-bonus"]');
+    if(b.dataset.app){cb.style.display='';cb.dataset.appId=b.dataset.app}
+    else{cb.style.display='none'}
+    // show current excuse in pop if any
+    const hint=pop.querySelector('.excuse-hint');
+    if(hint){
+      if(b.dataset.p==='2' && b.dataset.ex){hint.style.display='block';hint.textContent='Причина: '+b.dataset.ex}
+      else if(b.dataset.p==='2'){hint.style.display='block';hint.textContent='Уваж. причина (без текста)'}
+      else{hint.style.display='none'}
+    }
+  };
+});
+document.addEventListener('click',()=>pop.classList.remove('open'));
+addEventListener('scroll',()=>pop.classList.remove('open'),true);
+pop.onclick=e=>e.stopPropagation();
+pop.querySelectorAll('button').forEach(x=>x.onclick=async()=>{
+  const b=cur,v=x.dataset.a;
+  if(v==='cancel-bonus'){
+    if(!confirm('Отменить применение доп. баллов и вернуть исходную оценку?'))return;
+    const d=await post('/api/bonus/cancel',{id:+x.dataset.appId});
+    if(!d.ok){toast(d.error||'Ошибка');return}
+    softReload();
+    return;
+  }
+  if(v==='excused'){
+    pop.classList.remove('open');
+    document.getElementById('excuseReason').value=b.dataset.ex||'';
+    document.getElementById('excuseModal').style.display='flex';
+    return;
+  }
+  const body={lesson:+b.dataset.l,student:+b.dataset.s};
+  if(v==='clear'){body.present=null;body.grade=null;body.excuse=''}
+  else if(v==='here'){body.present=1;body.excuse=''}
+  else if(v==='abs'){body.present=0;body.excuse=''}
+  else body.grade=b.dataset.g===v?null:+v;
+  try{
+    const d=await post('/api/mark',body);
+    if(!d.ok){toast(d.error||'Ошибка');return}
+    b.dataset.p=d.present??'';b.dataset.g=d.grade??'';b.dataset.ex=d.excuse||'';paint(b);
+    const row=b.closest('tr');
+    row.querySelector('.avg').textContent=d.avg??'—';
+    row.querySelector('.miss').textContent=d.missed;
+    row.querySelector('.pct').textContent=d.pct==null?'—':d.pct+'%';
+    row.classList.toggle('warn',(d.avg&&d.avg<3)||(d.pct!=null&&d.pct<70));
+    pop.classList.remove('open');toast('Сохранено');
+  }catch(e){toast('Не удалось сохранить')}
+});
+document.querySelectorAll('.dt').forEach(s=>s.onclick=async()=>{
+  const t=prompt('Тема занятия',s.dataset.t);if(t===null)return;
+  await lesson({action:'topic',lesson:+s.closest('.lh').dataset.l,topic:t});
+  softReload();
+});
+document.querySelectorAll('.lh button').forEach(b=>b.onclick=async()=>{
+  if(b.dataset.a==='del'&&!confirm('Удалить занятие вместе с оценками и посещаемостью за этот день?'))return;
+  await lesson({action:b.dataset.a,lesson:+b.closest('.lh').dataset.l});
+  softReload();
+});
+
+const modal=document.getElementById('bonusModal');
+document.querySelectorAll('.bonus-edit').forEach(btn=>{
+  btn.onclick=e=>{
+    e.stopPropagation();bonusTarget=btn;
+    document.getElementById('bonusModalName').textContent=btn.closest('tr').querySelector('td').textContent;
+    document.getElementById('bonusBal').value=btn.dataset.bal||0;
+    document.getElementById('bonusReason').value='';
+    modal.style.display='flex';
+  };
+});
+document.getElementById('bonusCancel').onclick=()=>{modal.style.display='none'};
+modal.onclick=e=>{if(e.target===modal)modal.style.display='none'};
+document.getElementById('bonusSave').onclick=async()=>{
+  const bal=+document.getElementById('bonusBal').value;
+  const reason=document.getElementById('bonusReason').value;
+  const d=await post('/api/bonus/set',{gid:GID,sid:SID,student:+bonusTarget.dataset.s,balance:bal,reason:reason});
+  if(!d.ok){toast(d.error||'Ошибка сохранения');return}
+  bonusTarget.dataset.bal=d.balance;
+  bonusTarget.querySelector('.bal-num').textContent=d.balance;
+  modal.style.display='none';
+  toast(d.delta>0?('Выдано +'+d.delta):d.delta<0?('Списано '+d.delta):'Сохранено');
+};
+document.getElementById('rulesSave').onclick=async()=>{
+  const conditions=document.getElementById('rulesCond').value;
+  const d=await post('/api/bonus/rules',{gid:GID,sid:SID,conditions:conditions});
+  if(!d.ok){toast(d.error||'Ошибка');return}
+  toast('Условия сохранены');
+};
+
+/* collapsible bonus */
+(function(){
+  const btn=document.getElementById('bonusToggle'), body=document.getElementById('bonusBody');
+  if(!btn||!body)return;
+  btn.onclick=()=>{
+    const open=btn.getAttribute('aria-expanded')==='true';
+    btn.setAttribute('aria-expanded', open?'false':'true');
+    body.hidden=open;
+    btn.querySelector('.collapse-chevron').textContent=open?'▸':'▾';
+  };
+})();
+
+/* excuse modal */
+(function(){
+  const modal=document.getElementById('excuseModal');
+  if(!modal)return;
+  document.getElementById('excuseCancel').onclick=()=>{modal.style.display='none'};
+  modal.onclick=e=>{if(e.target===modal)modal.style.display='none'};
+  document.getElementById('excuseSave').onclick=async()=>{
+    if(!cur)return;
+    const reason=document.getElementById('excuseReason').value.trim();
+    const d=await post('/api/mark',{lesson:+cur.dataset.l,student:+cur.dataset.s,present:2,excuse:reason});
+    if(!d.ok){toast(d.error||'Ошибка');return}
+    cur.dataset.p=d.present??'';cur.dataset.g=d.grade??'';cur.dataset.ex=d.excuse||'';paint(cur);
+    const row=cur.closest('tr');
+    if(row){
+      row.querySelector('.avg').textContent=d.avg??'—';
+      row.querySelector('.miss').textContent=d.missed;
+      row.querySelector('.pct').textContent=d.pct==null?'—':d.pct+'%';
+      row.classList.toggle('warn',(d.avg&&d.avg<3)||(d.pct!=null&&d.pct<70));
+    }
+    modal.style.display='none';toast('Сохранено');
+  };
+})();
+</script>{% endblock %}

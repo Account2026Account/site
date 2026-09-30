@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}Дежурства — Campus{% endblock %}
+{% block content %}<a class="back" href="{{ url_for('index') }}">← В главное меню</a><h1 class="in">График дежурств</h1>
+<p class="sub in" style="--i:1">Группа {{ me.gname or '—' }}. Староста: {{ me.hname or 'не назначен' }}.</p>
+{% if is_head %}<div class="card in" style="--i:2"><h2>Составить график</h2>
+<form class="row" method="post" action="{{ url_for('duty_act', act='gen') }}"><label>Начало<input type="date" name="start" value="{{ today }}" required></label>
+<label>Рабочих дней<input type="number" name="days" value="10" min="1" max="60" style="width:90px"></label><label>Дежурных в день<input type="number" name="per" value="1" min="1" max="5" style="width:90px"></label>
+<label>Задача<input name="task" value="Дежурный по группе"></label><button class="btn">Составить автоматически</button></form>
+<p class="hint">Одногруппники назначаются по кругу в алфавитном порядке, начиная с того, кто дежурил последним.</p>
+<form class="row" style="margin-top:14px" method="post" action="{{ url_for('duty_act', act='add') }}"><label>Дата<input type="date" name="day" required></label>
+<label>Студент<select name="student_id">{% for s in studs %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></label><label>Задача<input name="task" placeholder="Дежурный по группе"></label><button class="btn">Назначить вручную</button></form>
+<form style="margin-top:14px" method="post" action="{{ url_for('duty_act', act='clear') }}" onsubmit="return confirm('Удалить все будущие дежурства?')"><button class="btn ghost" style="color:var(--bad);border-color:var(--line)">Очистить график с сегодняшнего дня</button></form></div>{% endif %}
+<div class="card in" style="--i:3"><h2>Дежурства группы</h2>
+{% for dd in duty_days %}<div class="li {{ 'past' if dd.day < today }}"><b style="min-width:120px">{{ dd.day[8:10] }}.{{ dd.day[5:7] }}, {{ wd[dd.wd] }}</b><div>
+{% for r in dd.lst %}<span class="pill {{ 'me' if r.student_id == session.uid }}">{{ r.sname }}, {{ r.task }}{% if is_head %}<form method="post" action="{{ url_for('duty_act', act='del') }}"><input type="hidden" name="id" value="{{ r.id }}"><button class="x" title="Убрать">×</button></form>{% else %}&nbsp;{% endif %}</span>{% endfor %}</div></div>
+{% else %}<p class="sub" style="margin:0">Дежурства пока не назначены.{% if is_head %} Составьте график выше.{% endif %}</p>{% endfor %}</div>{% endblock %}

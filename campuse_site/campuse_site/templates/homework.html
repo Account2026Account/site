@@ -1,0 +1,138 @@
+{% extends "base.html" %}{% block title %}Задания — Campus{% endblock %}
+{% block content %}<a class="back" href="{{ url_for('index') }}">← В главное меню</a><h1 class="in">Задания</h1>
+
+{% if is_teacher %}
+<p class="sub in" style="--i:1">Публикуйте задания для своих групп. Можно прикрепить файлы и ссылки. Отметки о выполнении — личные (как в Notion), преподаватель их не видит.</p>
+<form class="card in" style="--i:2" method="post" action="{{ url_for('homework_add') }}" enctype="multipart/form-data">
+<div class="row">
+<label>Группа и предмет<select name="course" required>{% for c in courses %}<option value="{{ c.gid }}:{{ c.sid }}">{{ c.gname }}, {{ c.sname }}</option>{% endfor %}</select></label>
+<label>Название<input name="title" required placeholder="Например, Контрольная №2"></label>
+<label>Срок сдачи<input type="date" name="due"></label>
+</div>
+<textarea name="body" placeholder="Описание задания (необязательно)" style="margin:12px 0"></textarea>
+<div class="attach-row">
+<label>Ссылки (по одной на строку)<textarea name="links" placeholder="https://docs.google.com/&#10;https://..." style="min-height:56px"></textarea></label>
+<label>Файлы (pdf, doc, xls, ppt, изображения, zip)<input type="file" name="files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.gif,.webp,.zip,.rar"></label>
+</div>
+<button class="btn" style="margin-top:12px">Опубликовать</button>
+</form>
+{% else %}
+<p class="sub in" style="--i:1">Отмечайте выполненные задания. В личных заметках можно сохранять свои решения, ссылки и черновики — их видите только вы.</p>
+{% endif %}
+
+<div class="card in" style="--i:2;padding:12px 16px;display:flex;gap:12px;flex-wrap:wrap;align-items:end">
+<label style="margin:0;flex:1;min-width:160px">Поиск<input type="search" id="hwSearch" placeholder="Название, предмет..." style="width:100%;margin-top:4px"></label>
+{% if not is_teacher %}
+<label style="margin:0">Фильтр
+<select id="hwFilter" style="margin-top:4px">
+<option value="all">Все</option>
+<option value="todo">Невыполненные</option>
+<option value="done">Выполненные</option>
+<option value="overdue">Просроченные</option>
+</select>
+</label>
+{% endif %}
+</div>
+
+{% if by_day %}
+{% for day, items in by_day.items() %}
+<div class="hw-day in" style="--i:{{ loop.index + 2 }}">
+{% if day == 'без срока' %}<h3>Без срока</h3>
+{% elif day == today %}<h3>Сегодня · {{ day[8:10] }}.{{ day[5:7] }}.{{ day[:4] }}</h3>
+{% elif day < today %}<h3>Просрочено · до {{ day[8:10] }}.{{ day[5:7] }}.{{ day[:4] }}</h3>
+{% else %}<h3>До {{ day[8:10] }}.{{ day[5:7] }}.{{ day[:4] }}</h3>{% endif %}
+
+{% for h in items %}
+<div class="hw-card {% if h.done %}done{% endif %} {% if h.due and h.due < today and not h.done %}overdue{% elif h.due == today and not h.done %}today-due{% endif %}" data-id="{{ h.id }}">
+<div class="row" style="justify-content:space-between;align-items:flex-start;gap:8px">
+<div style="flex:1;min-width:0">
+{% if not is_teacher %}<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin:0">
+<input type="checkbox" class="hw-check" data-id="{{ h.id }}" {% if h.done %} checked{% endif %} style="width:20px;height:20px;margin-top:2px;accent-color:var(--ok)">
+<span class="hw-title">{{ h.title }}</span>
+</label>{% else %}<div class="hw-title">{{ h.title }}</div>{% endif %}
+<div class="hw-meta">
+{% if is_teacher %}{{ h.gname }}, {{ h.sname }}
+{% else %}{{ h.sname }}{% if h.author %}, {{ h.author }}{% endif %}{% endif %}
+{% if h.due %} · срок {{ h.due[8:10] }}.{{ h.due[5:7] }}{% endif %}
+{% if h.due and h.due < today and not h.done %}<span class="badge bad">Просрочено</span>{% elif h.due == today and not h.done %}<span class="badge">Сегодня</span>{% endif %}
+</div>
+{% if h.body %}<div class="hw-body">{{ h.body }}</div>{% endif %}
+
+{% set atts = attach.get(h.id, []) %}
+{% if atts %}<div class="hw-attach">
+{% for a in atts %}
+{% if a.kind == 'link' %}<a href="{{ a.url }}" target="_blank" rel="noopener">🔗 {{ a.name }}</a>
+{% else %}<a href="{{ url_for('serve_upload', name=a.url) }}" target="_blank">📎 {{ a.name }}</a>{% endif %}
+{% endfor %}
+</div>{% endif %}
+
+{% if not is_teacher %}
+<div class="hw-notes">
+<label style="font-size:13px;color:var(--mut);font-weight:600">Мои заметки</label>
+<textarea class="note-area" data-id="{{ h.id }}" placeholder="Личные заметки, черновики, ссылки — видно только вам">{{ notes.get(h.id, '') }}</textarea>
+<div class="saved" data-id="{{ h.id }}" style="display:none">Сохранено</div>
+</div>
+{% endif %}
+</div>
+{% if is_teacher and h.author_id == session.uid %}
+<form method="post" action="{{ url_for('homework_del') }}" onsubmit="return confirm('Удалить задание?')">
+<input type="hidden" name="id" value="{{ h.id }}"><button class="x" title="Удалить">×</button>
+</form>
+{% endif %}
+</div>
+</div>
+{% endfor %}
+</div>
+{% endfor %}
+{% else %}
+<div class="card in"><p class="sub" style="margin:0">Заданий пока нет.{% if is_teacher %} Опубликуйте первое выше.{% endif %}</p></div>
+{% endif %}
+{% endblock %}
+
+{% block js %}
+<script>
+document.querySelectorAll('.hw-check').forEach(c=>c.onchange=async()=>{
+  try{
+    await fetch('/homework/done',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:+c.dataset.id,done:c.checked})});
+    c.closest('.hw-card').classList.toggle('done',c.checked);
+    toast(c.checked?'Отмечено как выполненное':'Отметка снята');
+    applyHwFilter();
+  }catch(e){c.checked=!c.checked;toast('Не удалось сохранить')}
+});
+const timers={};
+document.querySelectorAll('.note-area').forEach(ta=>{
+  ta.addEventListener('input',()=>{
+    clearTimeout(timers[ta.dataset.id]);
+    timers[ta.dataset.id]=setTimeout(async()=>{
+      try{
+        const r=await fetch('/homework/note',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:+ta.dataset.id,body:ta.value})});
+        const d=await r.json();
+        const s=document.querySelector('.saved[data-id="'+ta.dataset.id+'"]');
+        if(s){s.style.display='block';s.textContent='Сохранено'+(d.updated?' · '+d.updated:'');setTimeout(()=>s.style.display='none',2500)}
+      }catch(e){toast('Не удалось сохранить заметку')}
+    },600);
+  });
+});
+function applyHwFilter(){
+  const q=(document.getElementById('hwSearch')?.value||'').toLowerCase().trim();
+  const f=document.getElementById('hwFilter')?.value||'all';
+  document.querySelectorAll('.hw-day').forEach(day=>{
+    let vis=0;
+    day.querySelectorAll('.hw-card').forEach(card=>{
+      const text=card.textContent.toLowerCase();
+      const done=card.classList.contains('done');
+      const overdue=card.classList.contains('overdue');
+      let ok=(!q||text.includes(q));
+      if(f==='todo') ok=ok&&!done;
+      else if(f==='done') ok=ok&&done;
+      else if(f==='overdue') ok=ok&&overdue;
+      card.style.display=ok?'':'none';
+      if(ok) vis++;
+    });
+    day.style.display=vis?'':'none';
+  });
+}
+document.getElementById('hwSearch')?.addEventListener('input',applyHwFilter);
+document.getElementById('hwFilter')?.addEventListener('change',applyHwFilter);
+</script>
+{% endblock %}

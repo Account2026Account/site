@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}Мои группы — Campus{% endblock %}
+{% block content %}<h1 class="in">Мои группы</h1>
+<p class="sub in" style="--i:1">Журнал открыт для всех ваших назначений (группа + предмет). В расписании у каждой пары указана группа.</p>
+
+<div class="section in" style="--i:1">
+{% include "_today.html" %}
+</div>
+
+{% if rows %}
+<div class="section">
+<div class="section-title">Журналы</div>
+<div class="grid gap-lg" style="margin-bottom:0">{% for r in rows %}
+<a class="card tile elevated in" style="--i:{{ loop.index + 2 }}" href="{{ url_for('journal', gid=r.gid, sid=r.sid) }}">
+<div class="tile-top"><span class="group-badge">{{ r.gname }}</span></div>
+<h2>{{ r.sname }}</h2>
+<p class="sub" style="margin:8px 0 0">Студентов: {{ r.n }} · занятий: {{ r.l }}{% if r.co %}<br>Вместе с: {{ r.co }}{% endif %}</p>
+</a>{% endfor %}</div>
+</div>
+{% else %}<div class="card in"><p>Вам пока не назначены группы. Попросите администратора добавить назначение.</p></div>{% endif %}
+
+<div class="section">
+{% include "_ann.html" %}
+</div>
+{% endblock %}
