@@ -1,0 +1,165 @@
+{% extends "base.html" %}{% block title %}Итоговые оценки — {{ a.gname }}, {{ a.sname }}{% endblock %}
+{% block content %}
+{% set I = url_for('static', filename='icons') %}
+<a class="back" href="{{ url_for('journal', gid=a.gid, sid=a.sid) }}">← Журнал</a>
+<h1 class="in">Итоговые оценки</h1>
+<p class="sub in" style="--i:1">{{ a.gname }} · {{ a.sname }}</p>
+
+<div class="row in" style="--i:2;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+  <a class="btn ghost btn-ico" href="{{ url_for('finals_export', gid=a.gid, sid=a.sid) }}">
+    <img class="ico" src="{{ I }}/download.svg" width="18" height="18" alt=""> Скачать Excel
+  </a>
+  {% if can_edit %}
+  <button type="button" class="btn ghost btn-ico" id="addKindBtn">
+    <img class="ico" src="{{ I }}/clipboard.svg" width="18" height="18" alt=""> Добавить аттестацию
+  </button>
+  {% endif %}
+</div>
+
+<div class="section in" style="--i:2">
+  <div class="section-title">Периоды проведения</div>
+  <div class="finals-periods">
+  {% for kind, label in kinds.items() %}
+    <div class="period-card" data-kind="{{ kind }}">
+      <div class="period-head">
+        <b>{{ label }}</b>
+        {% if periods[kind].label %}<span class="sub">{{ periods[kind].label }}</span>{% endif %}
+        {% if can_edit %}
+        <span class="period-actions">
+          <button type="button" class="x kind-rename" title="Переименовать">✎</button>
+          <button type="button" class="x kind-del" title="Удалить">×</button>
+        </span>
+        {% endif %}
+      </div>
+      <div class="row period-dates" style="gap:8px;margin-top:10px">
+        <label class="sub" style="flex:1;margin:0">с
+          <input type="date" class="p-from" value="{{ periods[kind].from }}" {% if not can_edit %}disabled{% endif %} style="width:100%;margin-top:4px">
+        </label>
+        <label class="sub" style="flex:1;margin:0">по
+          <input type="date" class="p-to" value="{{ periods[kind].to }}" {% if not can_edit %}disabled{% endif %} style="width:100%;margin-top:4px">
+        </label>
+      </div>
+      {% if can_edit %}
+      <button type="button" class="btn ghost p-save" style="margin-top:10px;padding:7px 14px;font-size:13px">Сохранить даты</button>
+      {% endif %}
+    </div>
+  {% endfor %}
+  </div>
+</div>
+
+<div class="section in" style="--i:3">
+  <div class="section-title">Оценки студентов</div>
+  <input id="finSearch" placeholder="Поиск студента…" style="margin:0 0 10px;width:100%;max-width:280px">
+  <div class="hint-box">
+    <b>Как ставить:</b> оценка — число <code>2–5</code>, <code>зачёт</code>, <code>незачёт</code>, <code>н/я</code>.
+    Поле ниже — заметка. Сохраняется автоматически при уходе с поля.
+    Периоды дат для диф. зачёта / экзамена настраиваются в карточках выше.
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+  {% if not students %}
+    <p style="padding:18px">Нет студентов в группе.</p>
+  {% else %}
+  <div class="scroll"><table class="jt finals-table"><thead><tr>
+    <th>Студент</th>
+    {% for kind, label in kinds.items() %}
+    <th>
+      <small>{{ label }}</small>
+      {% if periods[kind].label %}
+      <div class="final-period-th">{{ periods[kind].label }}</div>
+      {% endif %}
+    </th>
+    {% endfor %}
+  </tr></thead>
+  <tbody>
+  {% for st in students %}
+  <tr data-sid="{{ st.id }}">
+    <td>{{ st.name }}</td>
+    {% for kind, label in kinds.items() %}
+    {% set g = (by_st.get(st.id) or {}).get(kind) %}
+    <td class="final-cell" data-kind="{{ kind }}">
+      {% if can_edit %}
+      <input class="final-grade" data-kind="{{ kind }}" value="{{ g.grade if g else '' }}" placeholder="—" title="Оценка или текст: 4, зачёт, н/я…">
+      {% else %}
+        {% if g and g.grade %}<span class="cell ok">{{ g.grade }}</span>
+        {% else %}<span class="cell">—</span>{% endif %}
+      {% endif %}
+    </td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+  </tbody></table></div>
+  {% if can_edit %}<p class="hint" style="padding:10px 14px">Оценка: число, «зачёт», «незачёт» и т.п. Сохраняется при уходе с поля. Можно добавить свои типы аттестаций кнопкой выше.</p>{% endif %}
+  {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block js %}
+<script>
+const GID={{ a.gid }}, SID={{ a.sid }}, CAN={{ 'true' if can_edit else 'false' }};
+const fs=document.getElementById('finSearch');
+if(fs)fs.oninput=()=>{const q=fs.value.toLowerCase();document.querySelectorAll('.finals-table tbody tr').forEach(tr=>tr.hidden=!tr.textContent.toLowerCase().includes(q))};
+
+async function post(u,b){
+  const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+  return r.json();
+}
+if(CAN){
+  document.querySelectorAll('.p-save').forEach(btn=>{
+    btn.onclick=async()=>{
+      const card=btn.closest('.period-card');
+      const d=await post('/api/finals/period',{
+        gid:GID,sid:SID,kind:card.dataset.kind,
+        date_from:card.querySelector('.p-from').value,
+        date_to:card.querySelector('.p-to').value
+      });
+      toast(d.ok?'Даты сохранены':(d.error||'Ошибка'));
+    };
+  });
+  let t;
+  function saveFinal(inp){
+    clearTimeout(t);
+    t=setTimeout(async()=>{
+      const tr=inp.closest('tr');
+      const kind=inp.dataset.kind;
+      const grade=tr.querySelector('.final-grade[data-kind="'+kind+'"]').value;
+      const d=await post('/api/finals/set',{gid:GID,sid:SID,student:+tr.dataset.sid,kind:kind,grade:grade,note:''});
+      if(d.ok)toast('Сохранено');
+    },450);
+  }
+  document.querySelectorAll('.final-grade,.final-note').forEach(el=>{
+    el.addEventListener('change',()=>saveFinal(el));
+    el.addEventListener('blur',()=>saveFinal(el));
+  });
+  const addBtn=document.getElementById('addKindBtn');
+  if(addBtn){
+    addBtn.onclick=async()=>{
+      const label=prompt('Название аттестации (например: Курсовая, Зачёт, Экзамен):');
+      if(!label||!label.trim())return;
+      const d=await post('/api/finals/kind',{gid:GID,sid:SID,action:'add',label:label.trim()});
+      if(d.ok){toast('Добавлено');location.reload()}
+      else toast(d.error||'Ошибка');
+    };
+  }
+  document.querySelectorAll('.kind-rename').forEach(btn=>{
+    btn.onclick=async()=>{
+      const card=btn.closest('.period-card');
+      const cur=card.querySelector('.kind-label').textContent;
+      const label=prompt('Новое название:',cur);
+      if(!label||!label.trim()||label.trim()===cur)return;
+      const d=await post('/api/finals/kind',{gid:GID,sid:SID,action:'rename',kind:card.dataset.kind,label:label.trim()});
+      if(d.ok){toast('Переименовано');location.reload()}
+      else toast(d.error||'Ошибка');
+    };
+  });
+  document.querySelectorAll('.kind-del').forEach(btn=>{
+    btn.onclick=async()=>{
+      const card=btn.closest('.period-card');
+      if(!confirm('Удалить этот тип аттестации и все оценки по нему?'))return;
+      const d=await post('/api/finals/kind',{gid:GID,sid:SID,action:'delete',kind:card.dataset.kind});
+      if(d.ok){toast('Удалено');location.reload()}
+      else toast(d.error||'Ошибка');
+    };
+  });
+}
+</script>
+{% endblock %}
