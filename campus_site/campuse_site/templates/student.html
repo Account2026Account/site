@@ -1,0 +1,246 @@
+{% extends "base.html" %}{% block title %}Мои результаты — Campus{% endblock %}
+{% block content %}{% macro cell(c) %}{% if c.grade %}<span class="cell k{{ c.grade }}">{{ c.grade }}</span>{% if c.applied %}<span class="bonus-chip" title="Было {{ c.applied.original_grade }}">+{{ c.applied.points_used }}</span>{% endif %}{% elif c.present == 2 %}<span class="cell exc" title="{{ c.excuse or 'Уважительная причина' }}">у</span>{% if c.excuse %}<span class="excuse-under" title="{{ c.excuse }}">{{ c.excuse[:18] }}{% if c.excuse|length > 18 %}…{% endif %}</span>{% endif %}{% elif c.present == 0 %}<span class="cell abs">н</span>{% elif c.present == 1 %}<span class="cell ok">•</span>{% else %}<span class="cell"></span>{% endif %}{% endmacro %}
+<h1 class="in">Мои результаты</h1><p class="sub in" style="--i:1">Группа {{ grp or '—' }}</p>
+
+<div class="section in" style="--i:1">
+{% include "_today.html" %}
+
+{% if is_head or is_deputy %}
+<div class="section in" style="--i:2">
+  <div class="section-title">Посещаемость группы (староста)</div>
+  <div class="card">
+    <p class="hint" style="margin-top:0">Посещаемость группы. Оценки ставит только преподаватель.</p>
+    <a class="btn" href="{{ url_for('head_attendance') }}">Открыть журнал посещаемости</a>
+  </div>
+</div>
+{% endif %}
+
+</div>
+
+{% if my_duty or hw %}<div class="section"><div class="section-title">Сейчас</div><div class="two" style="margin-bottom:0">{% if hw %}<div class="card in"><h2>Задания к выполнению</h2>{% for h in hw %}<div class="li"><span>{{ h.title }}<br><small>{{ h.sname }}{% if h.due %}, до {{ h.due[8:10] }}.{{ h.due[5:7] }}{% endif %}</small></span></div>{% endfor %}<a class="back" style="margin:8px 0 0" href="{{ url_for('homework') }}">Все задания</a></div>{% endif %}
+{% if my_duty %}<div class="card in"><h2>Мои дежурства</h2>{% for r in my_duty %}<div class="li"><span>{{ r.day[8:10] }}.{{ r.day[5:7] }}<br><small>{{ r.task }}</small></span></div>{% endfor %}<a class="back" style="margin:8px 0 0" href="{{ url_for('duty') }}">График группы</a></div>{% endif %}</div></div>{% endif %}
+
+<div class="section">
+<div class="section-title">Сводка</div>
+<div class="stats" style="margin-bottom:0">
+<div class="card in" style="--i:2;margin:0"><div class="sub" style="margin:0">Средний балл</div><div class="big" data-count="{{ avg }}" data-dec="2">0</div></div>
+<div class="card in" style="--i:3;margin:0"><div class="sub" style="margin:0">Посещаемость, %</div><div class="big" data-count="{{ pct }}" data-dec="0">0</div><div class="bar"><i data-w="{{ pct }}"></i></div></div>
+<div class="card in" style="--i:4;margin:0"><div class="sub" style="margin:0">Получено оценок</div><div class="big" data-count="{{ cnt }}" data-dec="0">0</div></div></div>
+</div>
+
+<div class="section">
+{% include "_ann.html" %}
+</div>
+
+{% if my_finals %}
+<div class="section in" style="--i:2">
+<div class="section-title">Итоговые аттестации</div>
+{% for f in my_finals %}
+<div class="card elevated" style="margin-bottom:10px">
+  <b style="font-size:16px">{{ f.sname }}</b>
+  <div class="finals-stu-grid" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px">
+  {% for it in f.atts %}
+    <div class="final-stu-item" style="background:var(--soft);border-radius:10px;padding:10px 14px;min-width:140px">
+      <div class="sub" style="margin:0 0 4px">{{ it.label }}</div>
+      {% if it.period %}<div class="sub" style="margin:0 0 4px;font-size:11px">{{ it.period }}</div>{% endif %}
+      <div style="font-size:20px;font-weight:700;color:var(--ok)">{{ it.grade }}</div>
+      {% if it.note %}<div class="sub" style="margin:4px 0 0;font-size:12px">{{ it.note }}</div>{% endif %}
+      {% if it.updated %}<div class="sub" style="margin:2px 0 0;font-size:11px">{{ it.updated }}</div>{% endif %}
+    </div>
+  {% endfor %}
+  </div>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="section">
+{% if missed is defined and missed %}
+<p class="sub in" style="margin-bottom:8px">Всего пропусков: <b>{{ missed }}</b> пар ≈ <b>{{ missed_hours }}</b> ч (1 пара = 95 мин)</p>
+{% endif %}
+<div class="section-title">Предметы</div>
+<input id="stuSubSearch" placeholder="Поиск предмета…" style="margin:0 0 12px;width:100%;max-width:280px">
+{% for s in subs %}<div class="card in elevated stu-sub" style="--i:{{ loop.index + 4 }}" data-s="{{ s.sname|lower }}">
+<div class="row" style="justify-content:space-between;align-items:baseline"><b style="font-size:18px">{{ s.sname }}</b><span class="sub" style="margin:0">{{ s.tname }}</span></div>
+<p class="sub" style="margin:4px 0 0">Средний балл: <b>{{ s.avg or '—' }}</b>, пропусков: {{ s.missed }} ({{ s.missed_hours or 0 }} ч), посещаемость: {{ (s.pct ~ '%') if s.pct is not none else '—' }}</p>
+<div class="bar"><i data-w="{{ s.pct or 0 }}"></i></div>
+{% if s.bonus_balance or s.bonus_conditions %}
+<div class="bonus-box collapsible" style="padding:0;margin-top:12px">
+  <button type="button" class="collapse-toggle bonus-stu-toggle" aria-expanded="false">
+    <img class="ico" src="{{ url_for('static', filename='icons/star.svg') }}" width="16" height="16" alt="">
+    <span>Доп. баллы: <b>{{ s.bonus_balance }}</b></span>
+    <span class="collapse-chevron">▸</span>
+  </button>
+  <div class="collapse-body" hidden>
+    {% if s.bonus_conditions %}<div class="bonus-cond"><b>Условия получения:</b> {{ s.bonus_conditions }}</div>{% endif %}
+    {% if s.bonus_balance > 0 %}
+    <div class="bonus-row">
+      <span class="sub" style="margin:0">Применить к оценке:</span>
+      <select class="bonus-lesson" data-sid="{{ s.id }}">
+        <option value="">— дата занятия —</option>
+        {% for c in s.cells %}{% if c.grade and c.grade < 5 and not c.applied %}
+        <option value="{{ c.lid }}" data-grade="{{ c.grade }}">{{ c.day[8:10] }}.{{ c.day[5:7] }} (сейчас {{ c.grade }}{% if c.topic %} · {{ c.topic[:30] }}{% endif %})</option>
+        {% endif %}{% endfor %}
+      </select>
+      <label class="sub" style="margin:0;display:flex;align-items:center;gap:6px">
+        Баллов:
+        <input type="number" class="bonus-pts" min="1" max="{{ s.bonus_balance }}" value="1" style="width:72px">
+      </label>
+      <button type="button" class="btn bonus-apply" style="padding:8px 14px">Применить</button>
+    </div>
+    <p class="hint" style="margin-top:8px;margin-bottom:0">Сколько баллов потратить (оценка не выше 5). Отменить сможет только преподаватель.</p>
+    {% else %}
+    <p class="sub" style="margin:0">Пока нет доступных баллов.</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% set cell_limit = 8 %}
+{% set total_cells = s.cells|length %}
+{% set hide_count = total_cells - cell_limit if total_cells > cell_limit else 0 %}
+<div class="cells-head">
+  <span class="sub">Отметки{% if total_cells %} · {{ total_cells }}{% endif %}</span>
+  {% if hide_count > 0 %}
+  <button type="button" class="btn ghost cells-toggle mini-more" data-more="{{ hide_count }}" aria-expanded="false">Показать все ▸</button>
+  {% endif %}
+</div>
+<div class="mini{% if hide_count > 0 %} collapsed-cells{% endif %}" data-total="{{ total_cells }}">
+{% for c in s.cells %}
+{# старые в начале списка — скрываем первые, показываем последние cell_limit #}
+{% set is_extra = hide_count > 0 and loop.index <= hide_count %}
+<div class="ms{% if is_extra %} extra-cell{% endif %}" title="{{ c.topic or '' }}">{{ c.day[8:10] }}.{{ c.day[5:7] }}{{ cell(c) }}</div>
+{% else %}<span class="sub">Занятий пока не было.</span>{% endfor %}
+</div></div>
+{% else %}<div class="card"><p>Для вашей группы пока не назначены предметы.</p></div>{% endfor %}
+</div>
+<p class="hint">Оценка · «н» — пропуск · «у» — уваж. · • — был. Доп. баллы — в блоке предмета.</p>{% endblock %}
+{% block js %}
+<script>
+const ss=document.getElementById('stuSubSearch');
+if(ss) ss.oninput=()=>{const q=ss.value.toLowerCase();document.querySelectorAll('.stu-sub').forEach(el=>{el.hidden=q&&!(el.dataset.s||'').includes(q)})};
+</script>
+<script>
+setTimeout(()=>document.querySelectorAll(".bar i").forEach(i=>i.style.width=i.dataset.w+"%"),300);
+document.querySelectorAll("[data-count]").forEach(el=>{const to=+el.dataset.count,dec=+el.dataset.dec,t0=performance.now();
+ (function f(t){const p=Math.min((t-t0)/1200,1),e=1-Math.pow(1-p,3);el.textContent=(to*e).toFixed(dec);if(p<1)requestAnimationFrame(f)})(t0)});
+
+document.querySelectorAll('.bonus-apply').forEach(btn=>{
+  btn.onclick=async()=>{
+    const row=btn.closest('.bonus-box');
+    const sel=row.querySelector('.bonus-lesson');
+    const ptsInput=row.querySelector('.bonus-pts');
+    const lid=sel.value;
+    const points=+ptsInput.value;
+    if(!lid){toast('Выберите дату занятия');return}
+    if(!points||points<1){toast('Укажите число баллов');return}
+    const opt=sel.options[sel.selectedIndex];
+    const grade=+opt.dataset.grade;
+    const maxUp=5-grade;
+    if(points>maxUp){
+      if(!confirm('К оценке '+grade+' можно добавить не больше '+maxUp+'. Применить +'+maxUp+'?'))return;
+    }
+    if(!confirm('Потратить '+Math.min(points,maxUp)+' балл(ов) на оценку за выбранную дату? Отменить сможет только преподаватель.'))return;
+    try{
+      const r=await fetch('/api/bonus/apply',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({lesson:+lid,points:points})});
+      const d=await r.json();
+      if(!d.ok){toast(d.error||'Ошибка');return}
+      toast('Применено +'+d.used+'. Остаток: '+d.balance);
+      try{
+        if(d.grade===5 && localStorage.getItem('campus_anim_grade5')!=='0'){
+          sessionStorage.setItem('campus_play_celebrate5','1');
+        }
+      }catch(e){}
+      setTimeout(()=>location.reload(),600);
+    }catch(e){toast('Ошибка сети')}
+  };
+});
+
+document.querySelectorAll('.bonus-stu-toggle').forEach(btn=>{
+  btn.onclick=()=>{
+    const open=btn.getAttribute('aria-expanded')==='true';
+    btn.setAttribute('aria-expanded', open?'false':'true');
+    const body=btn.nextElementSibling;
+    if(body) body.hidden=open;
+    const ch=btn.querySelector('.collapse-chevron');
+    if(ch) ch.textContent=open?'▸':'▾';
+  };
+});
+
+/* Expand/collapse extra cells */
+document.querySelectorAll('.mini-more, .cells-toggle').forEach(btn=>{
+  btn.onclick=()=>{
+    const card=btn.closest('.stu-sub')||btn.closest('.card');
+    const mini=card?card.querySelector('.mini'):btn.closest('.mini');
+    if(!mini)return;
+    const collapsed=mini.classList.toggle('collapsed-cells');
+    btn.setAttribute('aria-expanded', collapsed?'false':'true');
+    btn.textContent=collapsed?('Показать все ▸'):'Свернуть ▾';
+  };
+});
+
+/* Celebration animation when grade becomes 5 via bonus */
+window._celebrateGrade5=function(){
+  try{if(localStorage.getItem('campus_anim_grade5')==='0')return}catch(e){}
+  // remove previous if any
+  document.querySelectorAll('.grade-celebrate-overlay').forEach(el=>el.remove());
+  const ov=document.createElement('div');
+  ov.className='grade-celebrate-overlay';
+  ov.setAttribute('role','presentation');
+  // lock scroll on mobile during animation
+  const prevOverflow=document.body.style.overflow;
+  document.body.style.overflow='hidden';
+  const ring=document.createElement('div');
+  ring.className='grade-celebrate-ring';
+  const num=document.createElement('div');
+  num.className='grade-celebrate-num';
+  num.textContent='5';
+  const lab=document.createElement('div');
+  lab.className='grade-celebrate-label';
+  lab.textContent='Отлично!';
+  const parts=document.createElement('div');
+  parts.className='grade-celebrate-particles';
+  const colors=['#ffd84d','#ffe566','#2b4eff','#5b7cff','#1fa971','#e5484d','#ff9f43','#a55eea','#fff','#ff6b9d'];
+  // Burst wave 1
+  for(let i=0;i<48;i++){
+    const s=document.createElement('span');
+    const angle=(i/48)*Math.PI*2+Math.random()*0.2;
+    const dist=100+Math.random()*220;
+    s.style.setProperty('--tx',(Math.cos(angle)*dist)+'px');
+    s.style.setProperty('--ty',(Math.sin(angle)*dist)+'px');
+    s.style.setProperty('--rot',(180+Math.random()*360)+'deg');
+    s.style.left='50%';s.style.top='50%';
+    s.style.background=colors[i%colors.length];
+    s.style.animationDelay=(0.05+Math.random()*0.35)+'s';
+    const sz=6+Math.random()*14;
+    s.style.width=sz+'px';s.style.height=sz+'px';
+    if(Math.random()>0.6){s.style.borderRadius='2px'} // some squares
+    parts.appendChild(s);
+  }
+  // Second delayed wave
+  for(let i=0;i<24;i++){
+    const s=document.createElement('span');
+    const angle=(i/24)*Math.PI*2;
+    const dist=60+Math.random()*140;
+    s.style.setProperty('--tx',(Math.cos(angle)*dist)+'px');
+    s.style.setProperty('--ty',(Math.sin(angle)*dist)+'px');
+    s.style.setProperty('--rot',(90+Math.random()*270)+'deg');
+    s.style.left='50%';s.style.top='50%';
+    s.style.background=colors[(i+3)%colors.length];
+    s.style.animationDelay=(0.4+Math.random()*0.4)+'s';
+    const sz=4+Math.random()*8;
+    s.style.width=sz+'px';s.style.height=sz+'px';
+    parts.appendChild(s);
+  }
+  ov.appendChild(parts);ov.appendChild(ring);ov.appendChild(num);ov.appendChild(lab);
+  document.body.appendChild(ov);
+  setTimeout(()=>{ov.remove();document.body.style.overflow=prevOverflow;},3200);
+};
+
+try{
+  if(sessionStorage.getItem('campus_play_celebrate5')==='1'){
+    sessionStorage.removeItem('campus_play_celebrate5');
+    setTimeout(function(){ if(window._celebrateGrade5) window._celebrateGrade5(); }, 200);
+  }
+}catch(e){}
+</script>{% endblock %}

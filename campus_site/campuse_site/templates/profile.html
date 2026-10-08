@@ -1,0 +1,61 @@
+{% extends "base.html" %}{% block title %}Профиль — Campus{% endblock %}
+{% block content %}<a class="back" href="{{ url_for('index') }}">← Назад</a><h1 class="in">Профиль</h1>
+<p class="sub in" style="--i:1">{{ session.name }}. Здесь можно сменить пароль и настройки.</p>
+<form class="card in narrow" style="--i:2" method="post"><h2>Смена пароля</h2><div class="row">
+<label>Текущий пароль<input type="password" name="old" required></label>
+<label>Новый пароль (от 6 символов)<input type="password" name="new" required minlength="6"></label>
+<label>Повторите новый пароль<input type="password" name="again" required></label>
+<button class="btn">Сохранить пароль</button></div></form>
+
+<div class="card in narrow" style="--i:3">
+  <h2>Настройки</h2>
+  <div class="row" style="align-items:center;justify-content:space-between;gap:12px">
+    <div>
+      <b style="font-size:14px">Анимация оценки «5»</b>
+      <p class="sub" style="margin:2px 0 0;font-size:13px">При повышении до 5 за доп. баллы</p>
+    </div>
+    <label class="sw" title="Вкл/выкл анимацию">
+      <input type="checkbox" id="animGrade5Toggle">
+      <i></i>
+    </label>
+  </div>
+</div>
+
+<div class="card in narrow" style="--i:4">
+  <h2>На телефон</h2>
+  <p class="sub" style="margin-top:0">Можно добавить Campus на домашний экран как приложение.</p>
+  <button type="button" class="btn" data-pwa-install hidden="hidden" id="pwaInstallBtn">Установить приложение</button>
+  <div id="pwaManualHint" class="hint" style="margin-top:10px">
+    <b>Android (Chrome):</b> меню ⋮ → «Установить приложение» или «На экран „Домой“».<br>
+    <b>iPhone (Safari):</b> «Поделиться» → «На экран „Домой“».
+  </div>
+</div>
+{% endblock %}
+{% block js %}
+<script>
+(function(){
+  const key='campus_anim_grade5';
+  const el=document.getElementById('animGrade5Toggle');
+  if(el){
+    try{el.checked=localStorage.getItem(key)!=='0'}catch(e){el.checked=true}
+    el.addEventListener('change',()=>{
+      try{localStorage.setItem(key,el.checked?'1':'0')}catch(e){}
+      if(typeof toast==='function')toast(el.checked?'Анимация включена':'Анимация выключена');
+    });
+  }
+  const btn=document.getElementById('pwaInstallBtn');
+  if(btn){
+    if(window.__pwaInstall) btn.hidden=false;
+    btn.addEventListener('click',async()=>{
+      const ev=window.__pwaInstall;
+      if(!ev){if(typeof toast==='function')toast('Используйте меню браузера «На экран Домой»');return}
+      ev.prompt();
+      const res=await ev.userChoice;
+      window.__pwaInstall=null;
+      btn.hidden=true;
+      if(typeof toast==='function')toast(res.outcome==='accepted'?'Установлено':'Отменено');
+    });
+  }
+})();
+</script>
+{% endblock %}
