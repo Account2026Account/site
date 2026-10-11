@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>{% block title %}Campus{% endblock %}</title>
+<meta name="theme-color" content="#14213d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Campus">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+<link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icon-192.png') }}">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='extra.css') }}">
+<script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}
+/* early layout class before paint */
+(function(){try{var m=window.matchMedia('(max-width:899px)').matches;document.documentElement.classList.add(m?'layout-mobile':'layout-desktop');}catch(e){document.documentElement.classList.add('layout-desktop');}})();</script>
+</head>
+<body class="{% if session.uid %}has-app{% endif %}">
+<div class="blob b1"></div><div class="blob b2"></div>
+{% if session.uid %}
+{% set role_label = {'admin':'администратор','dispatcher':'диспетчер','teacher':'преподаватель','student':'студент'}[session.role] %}
+{% set ep = request.endpoint or '' %}
+{% set I = url_for('static', filename='icons') %}
+
+<aside class="sidebar noprint" id="sidebar">
+  <a class="sidebar-logo" href="{{ url_for('index') }}">
+    <img class="ico" src="{{ I }}/logo.svg" alt="" width="26" height="26">
+    <span>Campus</span>
+  </a>
+  <div class="sidebar-user">
+    <b>{{ session.name }}</b>
+    <span>{{ role_label }}</span>
+  </div>
+  <nav class="sidebar-nav">
+    <a class="snav {{ 'on' if ep in ('index','student','teacher','admin') else '' }}" href="{{ url_for('index') }}">
+      <img class="ico" src="{{ I }}/home.svg" alt="" width="20" height="20"> Главная
+    </a>
+    <a class="snav {{ 'on' if ep == 'schedule' else '' }}" href="{{ url_for('schedule') }}">
+      <img class="ico" src="{{ I }}/calendar.svg" alt="" width="20" height="20"> Расписание
+    </a>
+    {% if session.role in ('student', 'teacher') %}
+    <a class="snav {{ 'on' if ep == 'homework' else '' }}" href="{{ url_for('homework') }}">
+      <img class="ico" src="{{ I }}/tasks.svg" alt="" width="20" height="20"> Задания
+    </a>
+    {% endif %}
+    {% if session.role == 'student' %}
+    <a class="snav {{ 'on' if ep == 'duty' else '' }}" href="{{ url_for('duty') }}">
+      <img class="ico" src="{{ I }}/people.svg" alt="" width="20" height="20"> Дежурства
+    </a>
+    {% endif %}
+    {% if session.role in ('admin', 'dispatcher') %}
+    <a class="snav {{ 'on' if ep == 'dispatcher' else '' }}" href="{{ url_for('dispatcher') }}">
+      <img class="ico" src="{{ I }}/settings.svg" alt="" width="20" height="20"> Управление
+    </a>
+    {% endif %}
+    <a class="snav {{ 'on' if ep == 'notifications_page' else '' }}" href="{{ url_for('notifications_page') }}">
+      <img class="ico" src="{{ I }}/bell.svg" alt="" width="20" height="20"> Уведомления
+      {% if notif_unread %}<span class="notif-badge">{{ notif_unread if notif_unread < 100 else '99+' }}</span>{% endif %}
+    </a>
+    <a class="snav {{ 'on' if ep == 'profile' else '' }}" href="{{ url_for('profile') }}">
+      <img class="ico" src="{{ I }}/user.svg" alt="" width="20" height="20"> Профиль
+    </a>
+  </nav>
+  <div class="sidebar-foot">
+    <button type="button" class="snav theme-btn" id="themeBtn" title="Тема">
+      <img class="ico" src="{{ I }}/theme.svg" alt="" width="20" height="20"> Тема
+    </button>
+    <a class="snav" href="{{ url_for('logout') }}">
+      <img class="ico" src="{{ I }}/logout.svg" alt="" width="20" height="20"> Выйти
+    </a>
+  </div>
+</aside>
+
+<header class="topbar noprint">
+  <a class="logo" href="{{ url_for('index') }}">
+    <img class="ico" src="{{ I }}/logo.svg" alt="" width="24" height="24">
+    <span>Campus</span>
+  </a>
+</header>
+
+<nav class="bottom-nav noprint" id="bottomNav">
+  <a class="bnav {{ 'on' if ep in ('index','student','teacher','admin') else '' }}" href="{{ url_for('index') }}">
+    <img class="ico" src="{{ I }}/home.svg" alt="" width="22" height="22"><span>Главная</span>
+  </a>
+  <a class="bnav {{ 'on' if ep == 'schedule' else '' }}" href="{{ url_for('schedule') }}">
+    <img class="ico" src="{{ I }}/calendar.svg" alt="" width="22" height="22"><span>Расписание</span>
+  </a>
+  {% if session.role in ('student', 'teacher') %}
+  <a class="bnav {{ 'on' if ep == 'homework' else '' }}" href="{{ url_for('homework') }}">
+    <img class="ico" src="{{ I }}/tasks.svg" alt="" width="22" height="22"><span>Задания</span>
+  </a>
+  {% elif session.role in ('admin', 'dispatcher') %}
+  <a class="bnav {{ 'on' if ep == 'dispatcher' else '' }}" href="{{ url_for('dispatcher') }}">
+    <img class="ico" src="{{ I }}/settings.svg" alt="" width="22" height="22"><span>Управление</span>
+  </a>
+  {% else %}
+  <a class="bnav {{ 'on' if ep == 'profile' else '' }}" href="{{ url_for('profile') }}">
+    <img class="ico" src="{{ I }}/user.svg" alt="" width="22" height="22"><span>Профиль</span>
+  </a>
+  {% endif %}
+  <a class="bnav {{ 'on' if ep == 'notifications_page' else '' }}" href="{{ url_for('notifications_page') }}">
+    <span class="bnav-ico-wrap">
+      <img class="ico" src="{{ I }}/bell.svg" alt="" width="22" height="22">
+      {% if notif_unread %}<span class="notif-badge sm">{{ notif_unread if notif_unread < 100 else '99+' }}</span>{% endif %}
+    </span>
+    <span>Уведомления</span>
+  </a>
+  <button type="button" class="bnav" id="moreBtn" aria-label="Ещё">
+    <img class="ico" src="{{ I }}/more.svg" alt="" width="22" height="22"><span>Ещё</span>
+  </button>
+</nav>
+
+<div class="more-sheet noprint" id="moreSheet" hidden>
+  <div class="more-backdrop" id="moreBackdrop"></div>
+  <div class="more-panel">
+    <div class="more-handle"></div>
+    <p class="more-user">{{ session.name }} · {{ role_label }}</p>
+    {% if session.role == 'student' %}
+    <a class="more-link" href="{{ url_for('duty') }}"><img class="ico" src="{{ I }}/people.svg" alt="" width="18" height="18"> Дежурства</a>
+    {% endif %}
+    <a class="more-link" href="{{ url_for('profile') }}"><img class="ico" src="{{ I }}/user.svg" alt="" width="18" height="18"> Профиль</a>
+    <button type="button" class="more-link theme-btn" id="themeBtnMobile"><img class="ico" src="{{ I }}/theme.svg" alt="" width="18" height="18"> Сменить тему</button>
+    <a class="more-link" href="{{ url_for('logout') }}"><img class="ico" src="{{ I }}/logout.svg" alt="" width="18" height="18"> Выйти</a>
+  </div>
+</div>
+{% endif %}
+
+<div class="app-main">
+  <main class="wrap">{% block content %}{% endblock %}</main>
+</div>
+<div id="toast"></div>
+<script>
+function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2400)}
+{% for m in get_flashed_messages() %}toast({{ m|tojson }});{% endfor %}
+(function(){
+  /* Force desktop/mobile layout class so sidebar shows on first paint (no resize needed) */
+  function applyLayout(){
+    var mobile = window.matchMedia('(max-width: 899px)').matches;
+    document.body.classList.toggle('layout-mobile', mobile);
+    document.body.classList.toggle('layout-desktop', !mobile);
+  }
+  applyLayout();
+  window.addEventListener('resize', applyLayout);
+  if(window.matchMedia){
+    try{ window.matchMedia('(max-width: 899px)').addEventListener('change', applyLayout); }catch(e){
+      try{ window.matchMedia('(max-width: 899px)').addListener(applyLayout); }catch(e2){}
+    }
+  }
+
+  function toggleTheme(){
+    const d=document.documentElement.getAttribute('data-theme')==='dark';
+    document.documentElement.setAttribute('data-theme',d?'':'dark');
+    try{localStorage.setItem('theme',d?'light':'dark')}catch(e){}
+  }
+  document.getElementById('themeBtn')?.addEventListener('click',toggleTheme);
+  document.getElementById('themeBtnMobile')?.addEventListener('click',toggleTheme);
+
+  const sheet=document.getElementById('moreSheet');
+  const moreBtn=document.getElementById('moreBtn');
+  const backdrop=document.getElementById('moreBackdrop');
+  function openMore(e){
+    if(e){e.preventDefault();e.stopPropagation();}
+    if(!sheet) return;
+    sheet.hidden=false;
+    sheet.classList.add('open');
+    document.body.style.overflow='hidden';
+  }
+  function closeMore(){
+    if(!sheet) return;
+    sheet.hidden=true;
+    sheet.classList.remove('open');
+    document.body.style.overflow='';
+  }
+  moreBtn?.addEventListener('click', openMore);
+  backdrop?.addEventListener('click', closeMore);
+  sheet?.querySelectorAll('a.more-link').forEach(function(a){
+    a.addEventListener('click', function(){ closeMore(); });
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape') closeMore();
+  });
+
+  const SCROLL_KEY='campus_scroll:'+location.pathname;
+  try{
+    const y=sessionStorage.getItem(SCROLL_KEY);
+    if(y!==null){const n=+y; if(!isNaN(n)&&n>0) requestAnimationFrame(function(){window.scrollTo(0,n)}); sessionStorage.removeItem(SCROLL_KEY);}
+  }catch(e){}
+  document.querySelectorAll('form').forEach(function(f){
+    f.addEventListener('submit',function(){
+      try{sessionStorage.setItem(SCROLL_KEY, String(window.scrollY||window.pageYOffset||0))}catch(e){}
+    });
+  });
+})();
+</script>{% block js %}{% endblock %}<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  });
+}
+window.__pwaInstall=null;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();
+  window.__pwaInstall=e;
+  document.querySelectorAll('[data-pwa-install]').forEach(btn=>{btn.hidden=false});
+});
+</script>
+</body></html>

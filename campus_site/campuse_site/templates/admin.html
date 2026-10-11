@@ -1,0 +1,186 @@
+{% extends "base.html" %}{% block title %}Администрирование — Campus{% endblock %}
+{% block content %}{% macro del(kind, id, msg='Удалить? Связанные данные тоже будут удалены.') %}<form method="post" action="{{ url_for('admin_act', act='del') }}" onsubmit="return confirm('{{ msg }}')"><input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="id" value="{{ id }}"><button class="x" title="Удалить">×</button></form>{% endmacro %}
+{% macro key(id) %}<button type="button" class="x k" title="Сменить пароль" onclick="resetPw({{ id }})">🔑</button>{% endmacro %}
+{% set roles = {'admin':'Администратор','dispatcher':'Диспетчер','teacher':'Преподаватель','curator':'Куратор','student':'Студент'} %}
+<h1 class="in">Администрирование</h1>
+<div class="cnts in" style="--i:1"><div class="card"><small>Групп</small><b>{{ counts.groups }}</b></div><div class="card"><small>Студентов</small><b>{{ counts.students }}</b></div><div class="card"><small>Преподавателей</small><b>{{ counts.teachers }}</b></div><div class="card"><small>Занятий</small><b>{{ counts.lessons }}</b></div></div>
+<div class="tabs in" style="--i:2"><button type="button" class="on" data-t="people">Люди</button><button type="button" data-t="structure">Группы и предметы</button><button type="button" data-t="assign">Назначения</button><button type="button" data-t="jaccess">Доступ к журналам</button><button type="button" data-t="news">Объявления</button><button type="button" data-t="tools">Сервис</button></div>
+<section class="pane on" id="people"><div class="card"><form class="row compact" method="post" action="{{ url_for('admin_act', act='user') }}">
+<select name="role"><option value="student">Студент</option><option value="teacher">Преподаватель</option><option value="curator">Куратор</option><option value="dispatcher">Диспетчер</option></select>
+<select name="group_id"><option value="">Группа (для студента)</option>{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select>
+<input name="name" placeholder="Имя и фамилия" required><input name="login" placeholder="Логин" required><input name="password" type="password" placeholder="Пароль" required><button class="btn">Добавить</button></form>
+<div class="row compact" style="margin:12px 0"><input id="qi" placeholder="Поиск: имя, логин, группа, № студенческого…"><select id="rf"><option value="">Все роли</option>{% for k, v in roles.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+<div class="scroll" style="max-height:460px;overflow:auto"><table class="tbl compact" id="ut"><thead><tr><th>Имя</th><th>Логин</th><th>Роль</th><th>Группа</th><th></th></tr></thead><tbody>
+{% for u in users %}<tr data-r="{{ u.role }}"><td><span class="uname">{{ u.name }}</span>{% set head_gs = groups|selectattr('head_id','equalto',u.id)|list %}{% if head_gs %}<span class="badge" title="Староста: {{ head_gs|map(attribute='name')|join(', ') }}">староста{% if head_gs|length > 1 %} ×{{ head_gs|length }}{% endif %}</span>{% endif %}{% set dep_gs = groups|selectattr('deputy_head_id','equalto',u.id)|list %}{% if dep_gs %}<span class="badge" title="Зам. старосты: {{ dep_gs|map(attribute='name')|join(', ') }}">зам{% if dep_gs|length > 1 %} ×{{ dep_gs|length }}{% endif %}</span>{% endif %}{% set cur_gs = groups|selectattr('curator_id','equalto',u.id)|list %}{% if cur_gs %}<span class="badge" title="Куратор: {{ cur_gs|map(attribute='name')|join(', ') }}">куратор{% if cur_gs|length > 1 %} ×{{ cur_gs|length }}{% endif %}</span>{% endif %}</td><td>{{ u.login }}</td><td>{{ roles[u.role] }}</td>
+<td>{% if u.role == 'student' %}<form method="post" action="{{ url_for('admin_act', act='move') }}"><input type="hidden" name="id" value="{{ u.id }}"><select name="group_id" onchange="this.form.submit()"><option value="">Без группы</option>{% for g in groups %}<option value="{{ g.id }}" {% if g.id == u.group_id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select></form>{% else %}—{% endif %}</td>
+<td class="act nowrap">{{ key(u.id) }}{% if u.id != session.uid %}{{ del('user', u.id) }}{% endif %}</td></tr>{% endfor %}</tbody></table></div></div></section>
+<section class="pane" id="structure">
+<div class="two">
+  <div class="card">
+    <h2>Группы и старосты</h2>
+    <form class="row compact" method="post" action="{{ url_for('admin_act', act='group') }}">
+      <input name="name" placeholder="Например, ИС-23" required>
+      <button class="btn">Добавить</button>
+    </form>
+    <div class="group-cards" style="margin-top:12px;max-height:480px;overflow:auto">
+      {% for g in groups %}
+      <div class="group-card">
+        <div class="group-card-top">
+          <div>
+            <b class="g-name">{{ g.name }}</b>
+            <span class="sub"> · {{ sbg.get(g.id, [])|length }} студ.</span>
+          </div>
+          <form method="post" action="{{ url_for('admin_act', act='del') }}" onsubmit="return confirm('Удалить группу? Студенты останутся без группы, а расписание и занятия группы будут удалены.')">
+            <input type="hidden" name="kind" value="group"><input type="hidden" name="id" value="{{ g.id }}">
+            <button type="submit" class="del-btn" title="Удалить группу">×</button>
+          </form>
+        </div>
+        <div class="group-card-fields">
+          <form method="post" action="{{ url_for('admin_act', act='head') }}" class="head-form">
+            <input type="hidden" name="group_id" value="{{ g.id }}">
+            <label class="mini-lab">Староста</label>
+            <select name="student_id" onchange="this.form.submit()">
+              <option value="">Не назначен</option>
+              {% for u in sbg.get(g.id, []) %}
+              <option value="{{ u.id }}" {% if u.id == g.head_id %}selected{% endif %}>{{ u.name }}</option>
+              {% endfor %}
+            </select>
+          </form>
+          <form method="post" action="{{ url_for('admin_act', act='deputy_head') }}" class="head-form">
+            <input type="hidden" name="group_id" value="{{ g.id }}">
+            <label class="mini-lab">Зам. старосты</label>
+            <select name="student_id" onchange="this.form.submit()">
+              <option value="">Не назначен</option>
+              {% for u in sbg.get(g.id, []) %}
+              <option value="{{ u.id }}" {% if u.id == g.deputy_head_id %}selected{% endif %}>{{ u.name }}</option>
+              {% endfor %}
+            </select>
+          </form>
+          <form method="post" action="{{ url_for('admin_act', act='curator') }}" class="head-form">
+            <input type="hidden" name="group_id" value="{{ g.id }}">
+            <label class="mini-lab">Куратор</label>
+            <select name="teacher_id" onchange="this.form.submit()">
+              <option value="">Не назначен</option>
+              {% for t in teachers %}
+              <option value="{{ t.id }}" {% if t.id == g.curator_id %}selected{% endif %}>{{ t.name }}</option>
+              {% endfor %}
+              {% for u in users if u.role == 'curator' %}
+              <option value="{{ u.id }}" {% if u.id == g.curator_id %}selected{% endif %}>{{ u.name }}</option>
+              {% endfor %}
+            </select>
+          </form>
+        </div>
+      </div>
+      {% else %}
+      <p class="sub">Групп пока нет — добавьте первую.</p>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="card">
+    <h2>Предметы</h2>
+    <input id="subjSearch" placeholder="Поиск предмета…" style="margin:8px 0;width:100%;max-width:280px">
+    <form class="row compact" method="post" action="{{ url_for('admin_act', act='subject') }}">
+      <input name="name" placeholder="Например, История" required>
+      <button class="btn">Добавить</button>
+    </form>
+    <div class="subj-list">
+      {% for s in subjects %}
+      <div class="subj-item">
+        <span class="subj-label">{{ s.name }}</span>
+        <form method="post" action="{{ url_for('admin_act', act='del') }}" class="del-form" onsubmit="return confirm('Удалить? Связанные данные тоже будут удалены.')">
+          <input type="hidden" name="kind" value="subject"><input type="hidden" name="id" value="{{ s.id }}">
+          <button type="submit" class="del-btn" title="Удалить">×</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+</section>
+<section class="pane" id="assign"><div class="card"><form class="row compact" method="post" action="{{ url_for('admin_act', act='assign') }}">
+<select name="teacher_id" required>{% for t in teachers %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}</select><select name="group_id" required>{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select>
+<select name="subject_id" required>{% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select><button class="btn">Назначить</button></form>
+
+<input id="asSearch" placeholder="Поиск: группа, предмет, преподаватель…" style="margin:8px 0;width:100%;max-width:360px">
+<div class="scroll" style="max-height:460px;overflow:auto"><table class="tbl compact"><thead><tr><th>Группа</th><th>Предмет</th><th>Преподаватель</th><th></th></tr></thead><tbody>
+{% for a in assigns %}<tr><td>{{ a.gname }}</td><td>{{ a.sname }}</td><td>{{ a.tname }}</td><td class="act">{{ del('assign', a.id) }}</td></tr>{% endfor %}</tbody></table></div></div></section>
+<section class="pane" id="jaccess"><div class="card">
+<form class="row compact" method="post" action="{{ url_for('admin_act', act='journal_access') }}">
+<select name="teacher_id" required><option value="">Преподаватель</option>{% for t in teachers %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}</select>
+<select name="group_id" required><option value="">Группа</option>{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select>
+<select name="subject_id" required><option value="">Предмет</option>{% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select>
+<select name="level"><option value="edit">Редактирование</option><option value="view">Только просмотр</option></select>
+<button class="btn">Выдать доступ</button>
+</form>
+<p class="hint">При назначении доступ «редактирование» выдаётся сам.</p>
+<div class="scroll" style="max-height:460px;overflow:auto"><table class="tbl compact"><thead><tr><th>Преподаватель</th><th>Группа</th><th>Предмет</th><th>Уровень</th><th></th></tr></thead><tbody>
+{% for a in journal_access %}<tr>
+<td>{{ a.tname }}</td><td>{{ a.gname }}</td><td>{{ a.sname }}</td>
+<td>{{ 'Редактирование' if a.level=='edit' else 'Просмотр' }}</td>
+<td class="act"><form method="post" action="{{ url_for('admin_act', act='journal_access_del') }}" onsubmit="return confirm('Отозвать доступ?')">
+<input type="hidden" name="teacher_id" value="{{ a.teacher_id }}"><input type="hidden" name="group_id" value="{{ a.group_id }}"><input type="hidden" name="subject_id" value="{{ a.subject_id }}">
+<button class="x" title="Отозвать">×</button></form></td>
+</tr>{% endfor %}
+</tbody></table></div></div></section>
+<section class="pane" id="news">{% include "_ann.html" %}</section>
+<section class="pane" id="tools">
+<div class="two">
+  <div class="card">
+    <h2>Очистка данных</h2>
+    <p class="sub">Удаляет оценки, посещаемость и занятия. Действие необратимо.</p>
+    <form method="post" action="{{ url_for('admin_tools') }}" onsubmit="return confirm('Очистить все оценки и занятия выбранной группы?')" class="row compact" style="margin-bottom:12px">
+      <input type="hidden" name="act" value="clear_marks_group">
+      <select name="group_id" required><option value="">Группа</option>{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select>
+      <button class="btn" style="background:var(--bad)">Очистить группу</button>
+    </form>
+    <form method="post" action="{{ url_for('admin_tools') }}" onsubmit="return confirm('Очистить оценки, доп. баллы и итоги студента?')" class="row compact">
+      <input type="hidden" name="act" value="clear_marks_student">
+      <select name="student_id" required><option value="">Студент</option>{% for u in users if u.role=='student' %}<option value="{{ u.id }}">{{ u.name }} ({{ u.gname or '—' }})</option>{% endfor %}</select>
+      <button class="btn" style="background:var(--bad)">Очистить студента</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Уведомления и сессии</h2>
+    <form method="post" action="{{ url_for('admin_tools') }}" onsubmit="return confirm('Удалить ВСЕ уведомления у всех пользователей?')" style="margin-bottom:12px">
+      <input type="hidden" name="act" value="clear_all_notifications">
+      <button class="btn ghost" style="border-color:var(--bad);color:var(--bad)">Стереть все уведомления</button>
+    </form>
+    <form method="post" action="{{ url_for('admin_tools') }}">
+      <input type="hidden" name="act" value="logout_hint">
+      <button class="btn ghost">Как сбросить сессии всех</button>
+    </form>
+    <p class="hint">Flask хранит сессии в cookie. Чтобы «выгнать» всех — смените SECRET_KEY в app.py и перезапустите сервер.</p>
+  </div>
+</div>
+<div class="card" style="margin-top:18px">
+  <h2>Выгрузка оценок и посещаемости</h2>
+  <p class="sub">Excel по одному студенту или сводка по всем. Личные объявления — во вкладке «Объявления».</p>
+  <div class="row compact" style="margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <a class="btn ghost" href="{{ url_for('export_all') }}">Скачать всех студентов</a>
+    <a class="btn" href="{{ url_for('admin_backup') }}">Резервная копия (DB + CSV)</a>
+    <form method="post" action="{{ url_for('admin_tools') }}" style="display:inline" onsubmit="return confirm('Удалить фантомные пары?')">
+      <input type="hidden" name="act" value="cleanup_bells">
+      <button class="btn ghost" type="submit">Починить звонки</button>
+    </form>
+  </div>
+  <form class="row compact" method="get" id="exportStuForm" style="flex-wrap:wrap;gap:8px" onsubmit="var s=this.student_id;if(!s.value){alert('Выберите студента');return false}this.action='/export/student/'+s.value;return true">
+    <select name="student_id" required><option value="">Студент</option>{% for u in users if u.role=='student' %}<option value="{{ u.id }}">{{ u.name }} ({{ u.gname or '—' }})</option>{% endfor %}</select>
+    <button class="btn" type="submit">Скачать студента</button>
+  </form>
+</div>
+</section>
+
+<form id="pwf" method="post" action="{{ url_for('admin_act', act='pw') }}"><input type="hidden" name="id"><input type="hidden" name="password"></form>{% endblock %}
+{% block js %}<script>
+function resetPw(id){const p=prompt('Новый пароль (от 6 символов)');if(!p)return;const f=document.getElementById('pwf');f.id.value=id;f.password.value=p;f.submit()}
+const tabs=document.querySelectorAll('.tabs button');
+tabs.forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button,.pane').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.getElementById(b.dataset.t).classList.add('on');try{sessionStorage.tab=b.dataset.t}catch(e){}});
+try{const t=[...tabs].find(b=>b.dataset.t===sessionStorage.tab);if(t)t.click()}catch(e){}
+const qi=document.getElementById('qi'),rf=document.getElementById('rf');
+function flt(){const q=qi.value.toLowerCase(),r=rf.value;document.querySelectorAll('#ut tbody tr').forEach(t=>t.hidden=!((!r||t.dataset.r===r)&&t.textContent.toLowerCase().includes(q)))}
+qi.oninput=flt;rf.onchange=flt;
+const ss=document.getElementById('subjSearch');
+if(ss)ss.oninput=()=>{const q=ss.value.toLowerCase();document.querySelectorAll('.subj-item').forEach(el=>{el.hidden=!el.textContent.toLowerCase().includes(q)})};
+const as=document.getElementById('asSearch');
+if(as){const tbl=document.querySelector('#assign table.tbl');if(tbl)as.oninput=()=>{const q=as.value.toLowerCase();tbl.querySelectorAll('tbody tr').forEach(tr=>tr.hidden=!tr.textContent.toLowerCase().includes(q))}};
+</script>{% endblock %}

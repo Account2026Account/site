@@ -1,0 +1,63 @@
+<div class="card in" style="--i:2">
+  <div class="row row-inline" style="align-items:center;gap:8px;margin-bottom:12px">
+    <img class="ico" src="{{ url_for('static', filename='icons/megaphone.svg') }}" width="20" height="20" alt="">
+    <h2 style="margin:0">Объявления</h2>
+  </div>
+{% if groups is not none %}
+<form class="ann-form" method="post" action="{{ url_for('announce') }}" style="margin-bottom:14px">
+  <div class="row" style="gap:8px;flex-wrap:wrap;align-items:end">
+    <label style="margin:0;min-width:140px">Кому
+      <select name="target" id="annTarget" style="width:100%;margin-top:4px">
+        {% if all_ok %}<option value="all">Все группы</option>{% endif %}
+        {% for g in groups %}<option value="g:{{ g.id }}">Группа {{ g.name }}</option>{% endfor %}
+        {% if students is defined and students %}
+        <optgroup label="Лично студенту">
+          {% for u in students %}<option value="u:{{ u.id }}">{{ u.name }}{% if u.gname %} ({{ u.gname }}){% endif %}</option>{% endfor %}
+        </optgroup>
+        {% endif %}
+        {% if staff is defined and staff %}
+        <optgroup label="Лично сотруднику">
+          {% for u in staff %}
+          <option value="u:{{ u.id }}">{{ u.name }}{% if u.role %} ({{ {'teacher':'преп.','admin':'админ','dispatcher':'дисп.','curator':'куратор'}.get(u.role, u.role) }}){% endif %}</option>
+          {% endfor %}
+        </optgroup>
+        {% endif %}
+      </select>
+    </label>
+    <label style="margin:0;flex:1;min-width:140px">Заголовок
+      <input name="title" placeholder="Заголовок" required style="width:100%;margin-top:4px">
+    </label>
+  </div>
+  <textarea name="body" placeholder="Текст объявления" required style="width:100%;margin:10px 0;min-height:64px"></textarea>
+  <input type="hidden" name="group_id" id="annGid" value="">
+  <input type="hidden" name="user_id" id="annUid" value="">
+  <button class="btn" type="submit">Опубликовать</button>
+</form>
+<script>
+(function(){
+  const sel=document.getElementById('annTarget');
+  const gid=document.getElementById('annGid');
+  const uid=document.getElementById('annUid');
+  if(!sel)return;
+  function sync(){
+    const v=sel.value||'';
+    gid.value=''; uid.value='';
+    if(v.startsWith('g:')) gid.value=v.slice(2);
+    else if(v.startsWith('u:')) uid.value=v.slice(2);
+    else if(v==='all'){ gid.value=''; uid.value=''; }
+  }
+  sel.addEventListener('change',sync); sync();
+})();
+</script>
+{% endif %}
+{% for a in anns %}
+<div class="ann">
+  {% if can_del %}<form class="card-del" method="post" action="{{ url_for('announce_del') }}"><input type="hidden" name="id" value="{{ a.id }}"><button class="x" title="Удалить">×</button></form>{% endif %}
+  <b class="ann-title">{{ a.title }}</b>
+  <p>{{ a.body }}</p>
+  <small>{{ a.author }}, {% if a.target_user_id %}личное{% if a.target_name %} → {{ a.target_name }}{% endif %}{% elif a.gname %}{{ a.gname }}{% else %}все{% endif %}, {{ a.created }}</small>
+</div>
+{% else %}
+<p class="sub">Объявлений пока нет.</p>
+{% endfor %}
+</div>
